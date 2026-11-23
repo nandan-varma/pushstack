@@ -135,13 +135,6 @@ export {
 export const MAX_WEB_UPLOAD_BYTES = 25 * 1024 * 1024;
 
 /**
- * Items a project page reads and filters in one request. The table filters and
- * pages the rows it has, so a larger project says how many it is not showing
- * rather than returning every item.
- */
-export const MAX_PROJECT_BOARD_ITEMS = 500;
-
-/**
  * Where the browser starts warning about an upload's size. Deliberately *below*
  * {@link MAX_WEB_UPLOAD_BYTES}: a warning that fires at the size the server
  * rejects is not a warning, it is the error message. `limits.test.ts` asserts

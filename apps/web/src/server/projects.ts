@@ -4,7 +4,6 @@ import { z } from "zod";
 import {
 	MAX_BODY_CHARS,
 	MAX_LIST_SKIP,
-	MAX_PROJECT_BOARD_ITEMS,
 	MAX_PROJECT_DESCRIPTION_CHARS,
 	MAX_PROJECT_FIELD_NAME_CHARS,
 	MAX_PROJECT_FIELDS,
@@ -16,12 +15,7 @@ import {
 	MAX_PROJECTS_PER_USER,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
-import {
-	matchesProjectFilter,
-	type ProjectFilterItem,
-	type ProjectItemKind,
-	parseProjectFilter,
-} from "#/lib/project-filter";
+import type { ProjectFilterItem, ProjectItemKind } from "#/lib/project-filter";
 import { perfContext } from "./perf-log";
 import {
 	addProjectItem,
@@ -212,7 +206,14 @@ export const getUserProject = createServerFn({ method: "GET" })
 			login: z.string().min(1),
 			number: z.number().int().min(1),
 			q: z.string().max(MAX_PROJECT_FILTER_CHARS).optional(),
-			page: z.number().int().min(1).max(MAX_LIST_SKIP).default(1),
+			sort: z.string().max(MAX_PROJECT_FIELD_NAME_CHARS).optional(),
+			dir: z.enum(["asc", "desc"]).optional(),
+			page: z
+				.number()
+				.int()
+				.min(1)
+				.max(Math.floor(MAX_LIST_SKIP / ITEM_PAGE_SIZE) + 1)
+				.default(1),
 		}),
 	)
 	.handler(({ data }) =>
@@ -224,7 +225,7 @@ export const getUserProject = createServerFn({ method: "GET" })
 				viewer?.id,
 			);
 			if (!project) throw notFound();
-			const [{ fields }, options, { items, total: itemCount }] =
+			const [{ fields }, options, { items, total, itemCount }] =
 				await Promise.all([
 					listProjectFields(project.id, {
 						offset: 0,
@@ -232,8 +233,11 @@ export const getUserProject = createServerFn({ method: "GET" })
 					}),
 					listProjectFieldOptions(project.id),
 					listProjectBoardItems(project.id, viewer?.id, {
-						offset: 0,
-						limit: MAX_PROJECT_BOARD_ITEMS,
+						offset: (data.page - 1) * ITEM_PAGE_SIZE,
+						limit: ITEM_PAGE_SIZE,
+						query: data.q,
+						sort: data.sort,
+						dir: data.dir,
 					}),
 				]);
 			const values = await listProjectItemFieldValuesForItems(
@@ -261,9 +265,6 @@ export const getUserProject = createServerFn({ method: "GET" })
 				fields.map((field) => field.name.toLowerCase()),
 				optionNames,
 			);
-			const filter = parseProjectFilter(data.q ?? "");
-			const filtered = rows.filter((row) => matchesProjectFilter(row, filter));
-			const start = (data.page - 1) * ITEM_PAGE_SIZE;
 			return {
 				project: {
 					number: project.number,
@@ -275,12 +276,11 @@ export const getUserProject = createServerFn({ method: "GET" })
 				},
 				canWrite: projectAccess(project, viewer?.id).canWrite,
 				fields: fields.map((field) => fieldView(field, optionsByField)),
-				items: filtered.slice(start, start + ITEM_PAGE_SIZE),
-				total: filtered.length,
+				items: rows,
+				total,
 				itemCount,
-				truncated: itemCount > MAX_PROJECT_BOARD_ITEMS,
 				page: data.page,
-				pageCount: Math.max(1, Math.ceil(filtered.length / ITEM_PAGE_SIZE)),
+				pageCount: Math.max(1, Math.ceil(total / ITEM_PAGE_SIZE)),
 			};
 		}),
 	);

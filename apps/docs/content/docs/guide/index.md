@@ -319,8 +319,9 @@ user-owned; organizations, iteration fields and workflows are out of scope.
 A public project is readable by anyone, but it shows only items whose
 repository the visitor can read. A repository's Projects tab lists the
 projects holding one of its issues or pull requests. The web table and board
-load at most the first 500 items; larger projects are narrowed with the
-filter (the same syntax as the GraphQL `items(query:)`).
+page through readable items. Filtering and sorting happen before pagination,
+so larger projects remain searchable without loading the whole project into
+the browser. Filters share the syntax of GraphQL `items(query:)`.
 
 ## Gists
 

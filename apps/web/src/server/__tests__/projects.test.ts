@@ -19,13 +19,15 @@ vi.mock(
 const { createUsers, signIn, signOut } = await import("../../test/app-harness");
 const { getUserProject, getUserProjects } = await import("../projects");
 const { db } = await import("#/db");
-const { issues, repositories } = await import("#/db/app-schema");
+const { issues, repositories, projectV2Items, projectV2ItemFieldValues } =
+	await import("#/db/app-schema");
 const {
 	addProjectItem,
 	createProjectField,
 	createProjectForUser,
 	listFieldOptions,
 	listProjectFields,
+	listProjectItems,
 	setProjectItemFieldValue,
 } = await import("../project-store");
 
@@ -187,7 +189,6 @@ describe("getUserProject", () => {
 			"Team",
 		]);
 		expect(page.itemCount).toBe(2);
-		expect(page.truncated).toBe(false);
 		const [issue, draft] = page.items;
 		expect(issue).toMatchObject({
 			title: "Visible work",
@@ -265,5 +266,94 @@ describe("getUserProject", () => {
 		expect(page.pageCount).toBe(1);
 		expect(page.items).toEqual([]);
 		signOut();
+	});
+});
+
+describe("projects larger than the client board budget", () => {
+	let number: number;
+	let projectId: number;
+	beforeAll(async () => {
+		const project = await createProjectForUser(users.alice.id, {
+			title: "Large project",
+			public: true,
+		});
+		number = project.number;
+		projectId = project.id;
+		const points = await createProjectField(projectId, users.alice.id, {
+			name: "Points",
+			dataType: "NUMBER",
+		});
+		const due = await createProjectField(projectId, users.alice.id, {
+			name: "Due",
+			dataType: "DATE",
+		});
+		const rows = await db
+			.insert(projectV2Items)
+			.values(
+				Array.from({ length: 501 }, (_, index) => ({
+					projectId,
+					draftTitle: `Task${String(index + 1).padStart(4, "0")}`,
+					updatedAt: new Date(Date.UTC(2020, 0, index + 1)),
+				})),
+			)
+			.returning({ id: projectV2Items.id });
+		await db.insert(projectV2ItemFieldValues).values(
+			rows.flatMap((row, index) => [
+				{ itemId: row.id, fieldId: points.id, valueNumber: 501 - index },
+				{
+					itemId: row.id,
+					fieldId: due.id,
+					valueDate: new Date(Date.UTC(2020, 0, index + 1))
+						.toISOString()
+						.slice(0, 10),
+				},
+			]),
+		);
+	});
+
+	it("finds an exact title and field value beyond item 500", async () => {
+		signIn(users.bob);
+		for (const q of ["Task0501", "points:1", "due:2021-05-15"]) {
+			const page = await getUserProject({
+				data: { login: "alice", number, q, page: 1 },
+			});
+			expect(page.total).toBe(1);
+			expect(page.items.map((row) => row.title)).toEqual(["Task0501"]);
+			expect(page.itemCount).toBe(501);
+		}
+	});
+
+	it("sorts all rows before selecting a page for title, updated, number and date", async () => {
+		for (const [sort, dir] of [
+			["title", "desc"],
+			["updated", "desc"],
+			["points", "asc"],
+			["due", "desc"],
+		] as const) {
+			const first = await getUserProject({
+				data: { login: "alice", number, page: 1, sort, dir },
+			});
+			const next = await getUserProject({
+				data: { login: "alice", number, page: 2, sort, dir },
+			});
+			expect(first.items[0].title).toBe("Task0501");
+			expect(next.items[0].title).toBe("Task0451");
+			expect(first.pageCount).toBe(11);
+			expect(first.items).toHaveLength(50);
+		}
+		const last = await getUserProject({
+			data: { login: "alice", number, page: 11, sort: "title", dir: "desc" },
+		});
+		expect(last.items.map((row) => row.title)).toEqual(["Task0001"]);
+	});
+
+	it("uses the same field and kind qualifiers on GraphQL item reads", async () => {
+		const result = await listProjectItems(projectId, users.bob.id, {
+			query: "is:draft points:1",
+			offset: 0,
+			limit: 50,
+		});
+		expect(result.total).toBe(1);
+		expect(result.items[0].draftTitle).toBe("Task0501");
 	});
 });

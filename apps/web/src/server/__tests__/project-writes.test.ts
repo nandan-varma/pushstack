@@ -7,6 +7,8 @@
  * private project or a 403 for someone else's public one, with no partial
  * row left behind.
  */
+
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/db", async () => ({
@@ -34,7 +36,13 @@ const {
 	updateUserProjectField,
 } = await import("../projects");
 const { db } = await import("#/db");
-const { issues, repositories } = await import("#/db/app-schema");
+const {
+	issues,
+	repositories,
+	repositoryCollaborators,
+	organizations,
+	orgMemberships,
+} = await import("#/db/app-schema");
 
 const users = await createUsers("alice", "bob");
 let number = 0;
@@ -622,4 +630,119 @@ describe("getRepositoryProjects", () => {
 		);
 		signOut();
 	});
+});
+
+describe("project items with shared repository access", () => {
+	it("finds, adds and displays an issue in a private collaborator repository", async () => {
+		const repoId = await seedRepo(
+			users.bob.id,
+			"shared-project-items",
+			"private",
+		);
+		const issueId = await seedIssue(repoId, "Shared collaborator task");
+		await db
+			.insert(repositoryCollaborators)
+			.values({ repoId, userId: users.alice.id, role: "read" });
+		signIn(users.alice);
+		const project = await createUserProject({
+			data: { title: "Shared work", public: true },
+		});
+		const found = await searchUserProjectAddableItems({
+			data: {
+				login: "alice",
+				number: project.number,
+				query: "Shared collaborator task",
+			},
+		});
+		expect(found.items).toEqual([
+			expect.objectContaining({ id: issueId, repoOwner: "bob" }),
+		]);
+		await addUserProjectItem({
+			data: { login: "alice", number: project.number, issueId },
+		});
+		const page = await getUserProject({
+			data: { login: "alice", number: project.number, page: 1 },
+		});
+		expect(page.items).toEqual([
+			expect.objectContaining({
+				title: "Shared collaborator task",
+				repoOwner: "bob",
+			}),
+		]);
+		signOut();
+		const anonymous = await getUserProject({
+			data: { login: "alice", number: project.number, page: 1 },
+		});
+		expect(anonymous.items).toEqual([]);
+	});
+
+	it("uses the organization login for readable organization repository items", async () => {
+		const [org] = await db
+			.insert(organizations)
+			.values({ login: "project-team", defaultRepositoryPermission: "read" })
+			.returning();
+		await db
+			.insert(orgMemberships)
+			.values({ orgId: org.id, userId: users.alice.id });
+		const [repo] = await db
+			.insert(repositories)
+			.values({
+				organizationId: org.id,
+				name: "team-project",
+				visibility: "private",
+			})
+			.returning();
+		const issueId = await seedIssue(repo.id, "Organization task");
+		signIn(users.alice);
+		const project = await createUserProject({
+			data: { title: "Team work", public: true },
+		});
+		const found = await searchUserProjectAddableItems({
+			data: {
+				login: "alice",
+				number: project.number,
+				query: "Organization task",
+			},
+		});
+		expect(found.items).toEqual([
+			expect.objectContaining({ id: issueId, repoOwner: "project-team" }),
+		]);
+		await addUserProjectItem({
+			data: { login: "alice", number: project.number, issueId },
+		});
+		const page = await getUserProject({
+			data: { login: "alice", number: project.number, page: 1 },
+		});
+		expect(page.items).toEqual([
+			expect.objectContaining({
+				repoOwner: "project-team",
+				repoName: "team-project",
+			}),
+		]);
+	});
+});
+
+it("hides project-owned items after repository access is revoked", async () => {
+	const repoId = await seedRepo(
+		users.bob.id,
+		"revoked-project-items",
+		"private",
+	);
+	const issueId = await seedIssue(repoId, "Previously readable");
+	await db
+		.insert(repositoryCollaborators)
+		.values({ repoId, userId: users.alice.id, role: "read" });
+	signIn(users.alice);
+	const project = await createUserProject({
+		data: { title: "Revoked access", public: true },
+	});
+	const item = await addUserProjectItem({
+		data: { login: "alice", number: project.number, issueId },
+	});
+	const { findReadableProjectItem } = await import("../project-store");
+	expect(await findReadableProjectItem(item.id, users.alice.id)).not.toBeNull();
+	await db
+		.delete(repositoryCollaborators)
+		.where(eq(repositoryCollaborators.repoId, repoId));
+	expect(await findReadableProjectItem(item.id, users.alice.id)).toBeNull();
 });

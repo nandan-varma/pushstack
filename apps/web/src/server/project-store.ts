@@ -27,6 +27,7 @@ import {
 import { db } from "#/db";
 import {
 	issues,
+	organizations,
 	projectV2,
 	projectV2Fields,
 	projectV2ItemFieldValues,
@@ -49,10 +50,11 @@ import {
 	MAX_PROJECTS_PER_USER,
 	MAX_THREAD_TITLE_CHARS,
 } from "#/lib/limits";
+import { parseProjectFilter } from "#/lib/project-filter";
 import { isUniqueViolation } from "./db-errors";
 import { containing } from "./db-filters";
 import { withLockKey } from "./git-repo-lock";
-import { canReadRepo } from "./repo-access";
+import { canReadRepo, readableForViewer } from "./repo-access";
 
 /**
  * A Projects v2 write GitHub refuses (a cap, a duplicate name, a value of the
@@ -799,25 +801,48 @@ export interface ProjectItemsOptions {
 function visibleItemCondition(
 	viewerId: string | null | undefined,
 ): SQL | undefined {
-	return or(
-		isNull(projectV2Items.issueId),
-		viewerId
-			? or(
-					eq(repositories.visibility, "public"),
-					eq(repositories.ownerId, viewerId),
-				)
-			: eq(repositories.visibility, "public"),
-	);
+	return or(isNull(projectV2Items.issueId), readableForViewer(viewerId));
+}
+
+function itemTitle() {
+	return sql<string>`coalesce(${projectV2Items.draftTitle}, ${issues.title}, '')`;
+}
+
+/** Display values share the web/GraphQL filter's case-insensitive field names. */
+function itemFieldDisplay(name: string) {
+	return sql<string>`coalesce((select case ${projectV2Fields.dataType}
+		when 'TEXT' then ${projectV2ItemFieldValues.valueText}
+		when 'NUMBER' then cast(${projectV2ItemFieldValues.valueNumber} as text)
+		when 'DATE' then cast(${projectV2ItemFieldValues.valueDate} as text)
+		when 'SINGLE_SELECT' then ${projectV2SingleSelectOptions.name}
+		end
+		from ${projectV2ItemFieldValues}
+		inner join ${projectV2Fields} on ${projectV2Fields.id} = ${projectV2ItemFieldValues.fieldId}
+		left join ${projectV2SingleSelectOptions} on ${projectV2SingleSelectOptions.id} = ${projectV2ItemFieldValues.optionId}
+		where ${projectV2ItemFieldValues.itemId} = ${projectV2Items.id}
+		and lower(${projectV2Fields.name}) = ${name}
+		limit 1), '')`;
 }
 
 function itemSearch(search: string): SQL | undefined {
-	const pattern = containing(search);
-	return or(
-		ilike(issues.title, pattern),
-		ilike(issues.body, pattern),
-		ilike(projectV2Items.draftTitle, pattern),
-		ilike(projectV2Items.draftBody, pattern),
+	const filter = parseProjectFilter(search);
+	const conditions: SQL[] = filter.terms.map((term) =>
+		ilike(itemTitle(), containing(term)),
 	);
+	if (filter.kinds.length) {
+		conditions.push(sql`(case when ${projectV2Items.issueId} is null then 'draft'
+			when ${issues.kind} = 'pull_request' then 'pull_request' else 'issue' end)
+			in (${sql.join(
+				filter.kinds.map((kind) => sql`${kind}`),
+				sql`, `,
+			)})`);
+	}
+	for (const { field, value } of filter.values) {
+		conditions.push(eq(sql`lower(${itemFieldDisplay(field)})`, value));
+	}
+	for (const field of filter.empty)
+		conditions.push(eq(itemFieldDisplay(field), ""));
+	return conditions.length ? and(...conditions) : undefined;
 }
 
 function itemsWhere(
@@ -906,10 +931,8 @@ export async function findReadableProjectItem(
 		.where(
 			and(
 				eq(projectV2Items.id, itemId),
-				or(
-					eq(projectV2.ownerId, viewerId ?? ""),
-					and(eq(projectV2.public, true), visibleItemCondition(viewerId)),
-				),
+				projectVisibility(viewerId),
+				visibleItemCondition(viewerId),
 			),
 		);
 	if (!row) return null;
@@ -1199,29 +1222,72 @@ export interface ProjectBoardItem extends ProjectItemWithRepo {
 export async function listProjectBoardItems(
 	projectId: number,
 	viewerId: string | null | undefined,
-	page: { offset: number; limit: number },
-): Promise<{ items: ProjectBoardItem[]; total: number }> {
+	page: {
+		offset: number;
+		limit: number;
+		query?: string;
+		sort?: string;
+		dir?: "asc" | "desc";
+	},
+): Promise<{ items: ProjectBoardItem[]; total: number; itemCount: number }> {
 	const where = itemsWhere(projectId, viewerId, {
 		offset: page.offset,
 		limit: page.limit,
+		query: page.query,
 	});
+	const allWhere = itemsWhere(projectId, viewerId, {
+		offset: 0,
+		limit: page.limit,
+	});
+	const order = page.dir === "desc" ? desc : asc;
+	let sortColumn:
+		| SQL
+		| typeof projectV2Items.updatedAt
+		| typeof projectV2Items.createdAt = projectV2Items.createdAt;
+	if (page.sort === "title") sortColumn = itemTitle();
+	else if (page.sort === "updated") sortColumn = projectV2Items.updatedAt;
+	else if (page.sort) {
+		const [field] = await db
+			.select({ id: projectV2Fields.id, dataType: projectV2Fields.dataType })
+			.from(projectV2Fields)
+			.where(
+				and(
+					eq(projectV2Fields.projectId, projectId),
+					eq(sql`lower(${projectV2Fields.name})`, page.sort.toLowerCase()),
+				),
+			)
+			.limit(1);
+		if (field?.dataType === "NUMBER" || field?.dataType === "DATE") {
+			const value =
+				field.dataType === "NUMBER"
+					? projectV2ItemFieldValues.valueNumber
+					: projectV2ItemFieldValues.valueDate;
+			sortColumn = sql`(select ${value} from ${projectV2ItemFieldValues} where ${projectV2ItemFieldValues.itemId} = ${projectV2Items.id} and ${projectV2ItemFieldValues.fieldId} = ${field.id} limit 1)`;
+		}
+	}
 	const selection = {
 		...itemSelection(),
 		contentTitle: issues.title,
 		contentNumber: issues.number,
 		contentKind: issues.kind,
-		repoOwner: user.username,
+		repoOwner: sql<
+			string | null
+		>`coalesce(${user.username}, ${organizations.login})`,
 		repoName: repositories.name,
 	};
-	const [items, [held]] = await Promise.all([
+	const [items, [held], [all]] = await Promise.all([
 		db
 			.select(selection)
 			.from(projectV2Items)
 			.leftJoin(issues, eq(issues.id, projectV2Items.issueId))
 			.leftJoin(repositories, eq(repositories.id, issues.repoId))
 			.leftJoin(user, eq(user.id, repositories.ownerId))
+			.leftJoin(
+				organizations,
+				eq(organizations.id, repositories.organizationId),
+			)
 			.where(where)
-			.orderBy(asc(projectV2Items.createdAt), asc(projectV2Items.id))
+			.orderBy(order(sortColumn), asc(projectV2Items.id))
 			.limit(page.limit)
 			.offset(page.offset),
 		db
@@ -1230,9 +1296,23 @@ export async function listProjectBoardItems(
 			.leftJoin(issues, eq(issues.id, projectV2Items.issueId))
 			.leftJoin(repositories, eq(repositories.id, issues.repoId))
 			.leftJoin(user, eq(user.id, repositories.ownerId))
+			.leftJoin(
+				organizations,
+				eq(organizations.id, repositories.organizationId),
+			)
 			.where(where),
+		db
+			.select({ total: count() })
+			.from(projectV2Items)
+			.leftJoin(issues, eq(issues.id, projectV2Items.issueId))
+			.leftJoin(repositories, eq(repositories.id, issues.repoId))
+			.where(allWhere),
 	]);
-	return { items, total: Number(held?.total ?? 0) };
+	return {
+		items,
+		total: Number(held?.total ?? 0),
+		itemCount: Number(all?.total ?? 0),
+	};
 }
 
 /** Values of many items at once, for a table page (never one query per row). */
@@ -1317,18 +1397,18 @@ export async function searchAddableProjectItems(
 			title: issues.title,
 			number: issues.number,
 			kind: sql<"issue" | "pull_request">`${issues.kind}`.as("kind"),
-			repoOwner: user.username,
+			repoOwner: sql<
+				string | null
+			>`coalesce(${user.username}, ${organizations.login})`,
 			repoName: repositories.name,
 		})
 		.from(issues)
 		.innerJoin(repositories, eq(repositories.id, issues.repoId))
 		.leftJoin(user, eq(user.id, repositories.ownerId))
+		.leftJoin(organizations, eq(organizations.id, repositories.organizationId))
 		.where(
 			and(
-				or(
-					eq(repositories.visibility, "public"),
-					viewerId ? eq(repositories.ownerId, viewerId) : undefined,
-				),
+				readableForViewer(viewerId),
 				sql`not exists (select 1 from ${projectV2Items} where ${projectV2Items.issueId} = ${issues.id} and ${projectV2Items.projectId} = ${projectId})`,
 				sql`(${issues.kind} = 'pull_request' or ${issues.kind} = 'issue')`,
 				search

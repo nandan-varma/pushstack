@@ -214,7 +214,7 @@ export const queryKeys = {
 	userProject: (
 		login: string,
 		number: number,
-		filter: { q: string; page: number },
+		filter: { q: string; page: number; sort?: string; dir?: "asc" | "desc" },
 	) =>
 		[
 			"projects",
@@ -224,6 +224,8 @@ export const queryKeys = {
 			number,
 			filter.q,
 			filter.page,
+			filter.sort,
+			filter.dir,
 		] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
 	repoDiscussionsRoot: (repoId: number) =>
@@ -900,10 +902,13 @@ export function userProjectQueryOptions(
 	number: number,
 	q: string,
 	page: number,
+	sort = "title",
+	dir: "asc" | "desc" = "asc",
 ) {
 	return queryOptions({
-		queryKey: queryKeys.userProject(login, number, { q, page }),
-		queryFn: () => getUserProject({ data: { login, number, q, page } }),
+		queryKey: queryKeys.userProject(login, number, { q, page, sort, dir }),
+		queryFn: () =>
+			getUserProject({ data: { login, number, q, page, sort, dir } }),
 		staleTime: DEFAULT_STALE_TIME,
 	});
 }
