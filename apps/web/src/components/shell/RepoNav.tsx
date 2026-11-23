@@ -11,12 +11,14 @@ import {
 } from "@animateicons/react/lucide";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useMatchRoute, useParams } from "@tanstack/react-router";
+import { Download } from "lucide-react";
 import { CopyField } from "@/components/CopyField";
 import { ForkedFrom } from "@/components/repo/ForkedFrom";
 import { RepoFork } from "@/components/repo/RepoFork";
 import { RepoStar } from "@/components/repo/RepoStar";
 import { RepoWatch } from "@/components/repo/RepoWatch";
 import { SyncFork } from "@/components/repo/SyncFork";
+import { buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCloneUrl, getWikiCloneUrl } from "@/lib/git-utils";
 import { safeHomepageUrl } from "@/lib/homepage";
@@ -58,6 +60,9 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 	const commitsActive = Boolean(
 		matchRoute({ to: "/$owner/$name/commits/$branch", fuzzy: true }) ||
 			matchRoute({ to: "/$owner/$name/commit/$sha", fuzzy: true }),
+	);
+	const wikiActive = Boolean(
+		matchRoute({ to: "/$owner/$name/wiki", fuzzy: true }),
 	);
 	const isOwner = repo.ownerId === session?.user?.id;
 	const homepage = safeHomepageUrl(repo.homepage);
@@ -136,13 +141,15 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 					label="Code"
 					active={codeActive}
 				/>
-				<SidebarLink
-					to="/$owner/$name/issues"
-					params={{ owner, name }}
-					icon={CircleDotIcon}
-					label="Issues"
-					count={repo.openIssueCount}
-				/>
+				{repo.hasIssues && (
+					<SidebarLink
+						to="/$owner/$name/issues"
+						params={{ owner, name }}
+						icon={CircleDotIcon}
+						label="Issues"
+						count={repo.openIssueCount}
+					/>
+				)}
 				{repo.hasDiscussions && (
 					<SidebarLink
 						to="/$owner/$name/discussions"
@@ -180,9 +187,7 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 						params={{ owner, name }}
 						icon={BookOpenIcon}
 						label="Wiki"
-						active={Boolean(
-							matchRoute({ to: "/$owner/$name/wiki", fuzzy: true }),
-						)}
+						active={wikiActive}
 					/>
 				)}
 				<SidebarLink
@@ -219,18 +224,28 @@ export function RepoNav({ owner, name }: { owner: string; name: string }) {
 						Use this template
 					</Link>
 				)}
-				<CopyField value={getCloneUrl(owner, name)} label="Copy clone URL" />
-				{repo.hasWiki && (
+				<div className="space-y-1.5">
+					<p className="px-1 text-xs font-medium text-bjork-text-soft">
+						{wikiActive ? "Clone wiki" : "Clone repository"}
+					</p>
 					<CopyField
-						value={getWikiCloneUrl(owner, name)}
-						label="Copy wiki clone URL"
+						value={
+							wikiActive
+								? getWikiCloneUrl(owner, name)
+								: getCloneUrl(owner, name)
+						}
+						label={wikiActive ? "Copy wiki clone URL" : "Copy clone URL"}
 					/>
-				)}
+				</div>
 				<a
 					href={`/${owner}/${name}/archive/${ref.split("/").map(encodeURIComponent).join("/")}.zip`}
 					download
-					className="block px-1 text-[13px] text-bjork-text-soft hover:text-bjork-text-strong hover:underline"
+					className={buttonVariants({
+						variant: "outline",
+						className: "w-full",
+					})}
 				>
+					<Download aria-hidden="true" />
 					Download ZIP
 				</a>
 			</div>

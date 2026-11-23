@@ -557,17 +557,17 @@ export type CommitsBetween = {
 	/** More commits exist than `limit`; the newest are left out. */
 	truncated: boolean;
 	/**
-	 * The bounded walk ended before reaching base's history (base moved far
-	 * past the branch point), so the list may include commits that are on base.
+	 * The bounded walk ended before reaching base's history on every path,
+	 * so the list may include commits that are on base.
 	 */
 	incomplete: boolean;
 };
 
 /**
- * `log base..head`, composed from two memoized bounded walks: head's history
- * minus every commit in base's. Each side is bounded by `HISTORY_WALK_DEPTH`
- * (Vercel time limits). A missing ref has an empty history, so the result is
- * empty. `base` and `head` may be branch names or commit shas.
+ * `log base..head`, composed from two memoized bounded walks. Follow head's
+ * parents until reaching base's history, rather than subtracting shallow logs:
+ * their different cutoffs would otherwise count old shared commits as new.
+ * `base` and `head` may be branch names or commit shas.
  */
 export async function getCommitsBetween(
 	ownerKey: string,
@@ -599,14 +599,28 @@ export async function getCommitInfosBetween(
 		getCommitLog(ownerKey, repoName, head, HISTORY_WALK_DEPTH),
 	]);
 	const onBase = new Set(baseLog.map((commit) => commit.oid));
-	const exclusive = headLog.filter((commit) => !onBase.has(commit.oid));
-	const oldestFirst = exclusive.reverse();
+	const byOid = new Map(headLog.map((commit) => [commit.oid, commit]));
+	const exclusive = new Set<string>();
+	const pending = headLog.length ? [headLog[0].oid] : [];
+	let incomplete = false;
+	while (pending.length) {
+		const oid = pending.pop();
+		if (!oid || onBase.has(oid) || exclusive.has(oid)) continue;
+		const info = byOid.get(oid);
+		if (!info) {
+			incomplete = true;
+			continue;
+		}
+		exclusive.add(oid);
+		pending.push(...info.commit.parent);
+	}
+	const oldestFirst = headLog
+		.filter((commit) => exclusive.has(commit.oid))
+		.reverse();
 	return {
 		commits: oldestFirst.slice(0, limit),
 		truncated: oldestFirst.length > limit,
-		incomplete:
-			headLog.length >= HISTORY_WALK_DEPTH &&
-			oldestFirst.length === headLog.length,
+		incomplete,
 	};
 }
 

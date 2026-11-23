@@ -14,9 +14,9 @@ export const Route = createFileRoute("/_auth")({
 });
 
 const points = [
-	"Git over HTTPS with personal access tokens",
-	"Issues, pull requests and reviews in a split-view inbox",
-	"GitHub's REST API shapes, so your scripts keep working",
+	"Push your code with the Git tools you already use",
+	"Keep your ideas, pull requests, and reviews together",
+	"Bring your workflow with familiar GitHub-compatible APIs",
 ];
 
 /**
@@ -36,7 +36,7 @@ function AuthLayout() {
 				<div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_70%_20%,var(--bjork-accent-soft),transparent)]" />
 				<div className="relative max-w-md">
 					<h2 className="text-3xl font-semibold tracking-[-0.035em] text-bjork-text">
-						A forge that speaks GitHub.
+						A new home for your code.
 					</h2>
 					<ul className="mt-6 space-y-3">
 						{points.map((point) => (
