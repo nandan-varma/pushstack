@@ -12,6 +12,14 @@ export function missingTags(source, destination) {
 	});
 }
 
+export function releaseBody(release) {
+	// GitHub-generated contributor attributions must keep linking to GitHub accounts.
+	return (release.body ?? "").replace(
+		/ by @([a-zA-Z0-9][a-zA-Z0-9-]*) in /g,
+		(_, login) => ` by [@${login}](https://github.com/${login}) in `,
+	);
+}
+
 function run(command, args, input) {
 	const result = spawnSync(command, args, { encoding: "utf8", input });
 	if (result.error) throw result.error;
@@ -30,7 +38,7 @@ function tags(remote) {
 		});
 }
 
-function api(host, repo, path, body) {
+function api(host, repo, path, body, method = "POST") {
 	return JSON.parse(
 		run(
 			"gh",
@@ -40,7 +48,7 @@ function api(host, repo, path, body) {
 				host,
 				`repos/${repo}/${path}`,
 				...(body
-					? ["--method", "POST", "--input", "-"]
+					? ["--method", method, "--input", "-"]
 					: ["--paginate", "--slurp"]),
 			],
 			body ? JSON.stringify(body) : undefined,
@@ -87,11 +95,20 @@ async function main() {
 	const releases = api(source.hostname, sourceRepo, "releases")
 		.flat()
 		.filter((release) => !release.draft);
-	const existingReleases = new Set(
-		api(destination.hostname, destinationRepo, "releases")
-			.flat()
-			.map((release) => release.tag_name),
-	);
+	const existing = api(
+		destination.hostname,
+		destinationRepo,
+		"releases",
+	).flat();
+	const existingReleases = new Set(existing.map((release) => release.tag_name));
+	const relinkReleases = releases.filter((release) => {
+		const prior = existing.find((entry) => entry.tag_name === release.tag_name);
+		return (
+			prior &&
+			prior.body === (release.body ?? "") &&
+			prior.body !== releaseBody(release)
+		);
+	});
 	const pendingReleases = releases.filter(
 		(release) => !existingReleases.has(release.tag_name),
 	);
@@ -100,7 +117,7 @@ async function main() {
 			"Release assets need a separate transfer; refusing to publish incomplete releases",
 		);
 	console.info(
-		`${apply ? "Syncing" : "Plan:"} main (fast-forward only), ${pendingTags.length} missing tags, ${pendingReleases.length} published releases`,
+		`${apply ? "Syncing" : "Plan:"} main (fast-forward only), ${pendingTags.length} missing tags, ${pendingReleases.length} published releases, ${relinkReleases.length} contributor links to repair`,
 	);
 	if (!apply) return;
 	run("git", [
@@ -113,10 +130,21 @@ async function main() {
 		api(destination.hostname, destinationRepo, "releases", {
 			tag_name: release.tag_name,
 			name: release.name,
-			body: release.body ?? "",
+			body: releaseBody(release),
 			prerelease: release.prerelease,
 		});
 		console.info(`Published ${release.tag_name} on PushStack`);
+	}
+	for (const release of relinkReleases) {
+		const prior = existing.find((entry) => entry.tag_name === release.tag_name);
+		api(
+			destination.hostname,
+			destinationRepo,
+			`releases/${prior.id}`,
+			{ body: releaseBody(release) },
+			"PATCH",
+		);
+		console.info(`Repaired GitHub contributor links in ${release.tag_name}`);
 	}
 	const sourceTip = run("git", ["rev-parse", "origin/main"]);
 	const destinationTip = run("git", [
