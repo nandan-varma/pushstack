@@ -1239,7 +1239,7 @@ export async function listProjectBoardItems(
 		offset: 0,
 		limit: page.limit,
 	});
-	const order = page.dir === "desc" ? desc : asc;
+	const descending = page.dir === "desc";
 	let sortColumn:
 		| SQL
 		| typeof projectV2Items.updatedAt
@@ -1287,7 +1287,10 @@ export async function listProjectBoardItems(
 				eq(organizations.id, repositories.organizationId),
 			)
 			.where(where)
-			.orderBy(order(sortColumn), asc(projectV2Items.id))
+			.orderBy(
+				descending ? sql`${sortColumn} desc nulls last` : asc(sortColumn),
+				asc(projectV2Items.id),
+			)
 			.limit(page.limit)
 			.offset(page.offset),
 		db
