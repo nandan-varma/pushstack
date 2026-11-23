@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { BuiltWithItself } from "@/components/home/BuiltWithItself";
 import { LiveRepoPreview } from "@/components/home/LiveRepoPreview";
 import { ShippingFeatures } from "@/components/home/ShippingFeatures";
+import { useDemoRepository } from "@/components/home/useDemoRepository";
 import { buttonVariants } from "@/components/ui/button";
 import { DEMO_REPO, SITE_URL } from "@/lib/site";
 import { getSiteStats } from "@/server/site-stats";
@@ -16,10 +17,14 @@ export const Route = createFileRoute("/")({
 
 function LandingPage() {
 	const { restOperations } = Route.useLoaderData();
+	const { commits, branch } = useDemoRepository();
+	const compareSpec = commits?.[1]
+		? `${commits[1].sha}...${branch}`
+		: undefined;
 	return (
 		<div className="overflow-hidden">
 			<Hero />
-			<ShippingFeatures />
+			<ShippingFeatures compareSpec={compareSpec} />
 			<ApiSection restOperations={restOperations} />
 			<BuiltWithItself />
 			<FinalCta />
@@ -34,19 +39,19 @@ function Hero() {
 			<div className="mx-auto grid max-w-[1200px] grid-cols-1 gap-12 px-4 pt-14 pb-16 sm:px-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-center lg:pt-20 lg:pb-24">
 				<div className="rise-in min-w-0">
 					<p className="font-mono text-[11px] font-medium tracking-[0.14em] text-bjork-accent uppercase">
-						Git hosting · GitHub-compatible
+						Your next project starts here
 					</p>
 					<h1 className="mt-4 text-[2.75rem] leading-[1.05] font-semibold tracking-[-0.045em] text-balance text-bjork-text sm:text-6xl">
-						Your code, on a forge that speaks GitHub.
+						A new home for your code. Keep the way you work.
 					</h1>
 					<p className="mt-5 max-w-xl text-lg leading-8 text-pretty text-bjork-text-muted">
-						Host your repositories, review pull requests, and keep issues,
-						discussions and wikis beside your code. Push over HTTPS and use the
-						GitHub CLI and APIs you already know.
+						Bring your code, your ideas, and the people you build with.
+						PushStack keeps your repositories, issues, and pull requests
+						together, with the familiar tools and workflows you already know.
 					</p>
 					<div className="mt-8 flex flex-wrap gap-3">
 						<Link to="/signup" className={buttonVariants({ size: "lg" })}>
-							Get started
+							Make yourself at home
 							<ArrowRight aria-hidden="true" />
 						</Link>
 						<Link
@@ -54,7 +59,7 @@ function Hero() {
 							params={DEMO_REPO}
 							className={buttonVariants({ variant: "outline", size: "lg" })}
 						>
-							Browse PushStack's own repo
+							Take a look around
 						</Link>
 					</div>
 				</div>
@@ -78,20 +83,19 @@ function ApiSection({ restOperations }: { restOperations: number }) {
 						id="api-heading"
 						className="text-3xl font-semibold tracking-[-0.035em] text-bjork-text"
 					>
-						Change the base URL. Keep the tooling.
+						Your tools can come with you.
 					</h2>
 					<p className="mt-4 leading-7 text-bjork-text-muted">
-						The same request, the same JSON back. Personal access tokens work in
-						the <code>Authorization</code> header exactly as on GitHub; all{" "}
-						{restOperations} REST operations are checked against a shared
-						contract in CI, and <code>/api/graphql</code> answers the subset{" "}
-						<code>gh</code> needs.
+						You’ve put time into your workflow. Keep using the GitHub CLI and
+						the API requests you know, with PushStack as their new address. We
+						check {restOperations} REST operations for compatibility, and our
+						GraphQL API supports the requests <code>gh</code> needs.
 					</p>
 					<Link
 						to="/about"
 						className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-bjork-accent hover:underline"
 					>
-						How PushStack is built
+						Get to know PushStack
 						<ArrowRight aria-hidden="true" className="size-4" />
 					</Link>
 				</div>
@@ -137,14 +141,14 @@ function CodeCard({
 
 function FinalCta() {
 	return (
-		<section className="mx-auto max-w-[1200px] px-4 py-16 sm:px-6 sm:py-24">
+		<section className="mx-auto max-w-[1200px] px-4 py-12 sm:px-6 sm:py-16">
 			<div className="flex flex-col items-start justify-between gap-6 rounded-[24px] border border-bjork-border-muted bg-bjork-surface p-8 shadow-(--bjork-shadow-surface) sm:flex-row sm:items-center sm:p-10">
 				<div>
 					<h2 className="text-2xl font-semibold tracking-[-0.03em] text-bjork-text sm:text-3xl">
-						Bring a repository.
+						Ready for your first push?
 					</h2>
 					<p className="mt-2 text-bjork-text-muted">
-						Create an account, push a branch, and open your first pull request.
+						Start with a repository. Make something you care about.
 					</p>
 				</div>
 				<Link to="/signup" className={buttonVariants({ size: "lg" })}>

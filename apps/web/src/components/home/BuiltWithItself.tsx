@@ -7,27 +7,30 @@ export function BuiltWithItself() {
 	return (
 		<section
 			aria-labelledby="dogfood-heading"
-			className="mx-auto max-w-[1200px] px-4 pb-16 sm:px-6 sm:pb-24"
+			className="mx-auto max-w-[1200px] px-4 pt-12 sm:px-6 sm:pt-16"
 		>
-			<div className="rounded-[24px] border border-bjork-border-muted bg-bjork-surface p-8 shadow-(--bjork-shadow-surface) sm:p-10">
-				<h2
-					id="dogfood-heading"
-					className="text-2xl font-semibold tracking-[-0.03em] text-bjork-text sm:text-3xl"
-				>
-					Built with itself
-				</h2>
-				<p className="mt-3 max-w-2xl leading-7 text-bjork-text-muted">
-					PushStack's own issues and pull requests live on this instance, in{" "}
-					<Link
-						to="/$owner/$name"
-						params={DEMO_REPO}
-						className="font-medium text-bjork-text hover:underline"
+			<div className="flex flex-col justify-between gap-6 rounded-[20px] border border-bjork-border-muted bg-bjork-surface p-6 sm:p-8 lg:flex-row lg:items-center">
+				<div className="min-w-0">
+					<h2
+						id="dogfood-heading"
+						className="text-2xl font-semibold tracking-[-0.03em] text-bjork-text sm:text-3xl"
 					>
-						{DEMO_REPO.owner}/{DEMO_REPO.name}
-					</Link>
-					.
-				</p>
-				<div className="mt-6 flex flex-wrap gap-3">
+						We’re building here, too.
+					</h2>
+					<p className="mt-3 max-w-xl leading-7 text-bjork-text-muted">
+						Our code, ideas, and reviews live here, just like yours can. Follow
+						along in{" "}
+						<Link
+							to="/$owner/$name"
+							params={DEMO_REPO}
+							className="font-medium text-bjork-text hover:underline"
+						>
+							{DEMO_REPO.owner}/{DEMO_REPO.name}
+						</Link>
+						.
+					</p>
+				</div>
+				<div className="flex shrink-0 flex-wrap gap-3">
 					<Link
 						to="/$owner/$name/issues"
 						params={DEMO_REPO}

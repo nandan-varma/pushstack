@@ -24,68 +24,79 @@ import { DEMO_REPO } from "@/lib/site";
  * What the instance serves today. Each card links to the page of the demo
  * repository that shows the feature; nothing here is on a roadmap.
  */
-export function ShippingFeatures() {
+export function ShippingFeatures({ compareSpec }: { compareSpec?: string }) {
 	return (
 		<section
 			aria-labelledby="features-heading"
-			className="mx-auto max-w-[1200px] px-4 py-16 sm:px-6 sm:py-24"
+			className="mx-auto max-w-[1200px] px-4 py-14 sm:px-6 sm:py-20"
 		>
 			<h2
 				id="features-heading"
 				className="max-w-2xl text-3xl font-semibold tracking-[-0.035em] text-bjork-text sm:text-4xl"
 			>
-				What this instance serves today.
+				Room for the work around your code.
 			</h2>
 			<p className="mt-4 max-w-2xl leading-7 text-bjork-text-muted">
-				Explore PushStack's own repository and the features on this instance.
+				From the first idea to the next release, keep your work and its
+				conversations together. Explore our own project to see how it feels.
 			</p>
-			<div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+			<div className="mt-10 grid auto-rows-fr gap-4 md:grid-cols-2 lg:grid-cols-3">
 				<Feature
 					icon={GitFork}
-					title="Forks and pull requests from them"
-					body="Fork a repository, open a pull request from the fork's branch, and merge it into the base. The review keeps working after the fork is deleted."
+					title="Make it your own. Bring it back."
+					body="Try an idea in your own fork, then open a pull request to share it. Your review stays around, even if the fork goes away."
 				>
 					<Link
 						to="/$owner/$name/forks"
 						params={DEMO_REPO}
 						className={LINK_CLASS}
 					>
-						Forks of this repository
+						Explore the forks
 						<ArrowRight aria-hidden="true" className="size-4" />
 					</Link>
 				</Feature>
 				<Feature
 					icon={GitCompare}
-					title="Compare, including forks"
-					body="Read the commits and files between two branches, and download the comparison as .diff or .patch. The REST API also resolves a fork's owner:branch."
+					title="See what changed"
+					body="Look through the changes between branches, including forks. Read the commits, check the files, or take a diff with you."
 				>
-					<Link
-						to="/$owner/$name/compare/$"
-						params={{ ...DEMO_REPO, _splat: "main" }}
-						className={LINK_CLASS}
-					>
-						Compare branches
-						<ArrowRight aria-hidden="true" className="size-4" />
-					</Link>
+					{compareSpec ? (
+						<Link
+							to="/$owner/$name/compare/$"
+							params={{ ...DEMO_REPO, _splat: compareSpec }}
+							className={LINK_CLASS}
+						>
+							Compare recent changes{" "}
+							<ArrowRight aria-hidden="true" className="size-4" />
+						</Link>
+					) : (
+						<a
+							href="https://docs.git.nandan.fyi/docs/guide#work-in-the-browser"
+							className={LINK_CLASS}
+						>
+							Explore comparisons{" "}
+							<ArrowRight aria-hidden="true" className="size-4" />
+						</a>
+					)}
 				</Feature>
 				<Feature
 					icon={Terminal}
-					title="Stock gh, unmodified"
-					body="gh auth login completes with a device code; gh issue and gh pr then list, create, comment, review and merge against this instance."
+					title="Stay in your terminal"
+					body="Feel more at home on the command line? Use gh to open issues, join a review, and merge a pull request, just as you’re used to."
 				>
 					<Link
 						to="/$owner/$name/issues"
 						params={DEMO_REPO}
 						className={LINK_CLASS}
 					>
-						The issue tracker
+						Explore the issues
 						<ArrowRight aria-hidden="true" className="size-4" />
 					</Link>
 				</Feature>
 				<Feature
 					icon={GitMerge}
-					title="Merge commit, squash or rebase"
-					body="Each repository allows or refuses each of the three merge methods, and the merge endpoint enforces that choice."
+					title="Merge your way"
+					body="Keep the history that makes sense for your project. Choose merge commits, squash, or rebase, and decide which options your repository allows."
 				>
 					<Link
 						to="/$owner/$name/pulls"
@@ -98,22 +109,22 @@ export function ShippingFeatures() {
 				</Feature>
 				<Feature
 					icon={ShieldCheck}
-					title="Signed commits verified"
-					body="Commits and tags signed with a GPG or SSH key are checked against the keys on the account, and the API reports the verification."
+					title="Know who’s behind a commit"
+					body="Bring your GPG or SSH keys. PushStack checks signed commits and tags against the keys on your account."
 				>
 					<Link
 						to="/$owner/$name/commits/$branch"
 						params={{ ...DEMO_REPO, branch: "main" }}
 						className={LINK_CLASS}
 					>
-						Commits on main
+						Browse the commits
 						<ArrowRight aria-hidden="true" className="size-4" />
 					</Link>
 				</Feature>
 				<Feature
 					icon={Tag}
 					title="Releases"
-					body="Publish release notes and downloadable assets for a tag. Drafts stay hidden until they are published."
+					body="Share what’s new with release notes and downloads. Take your time with a draft, then publish when you’re ready."
 				>
 					<Link
 						to="/$owner/$name/releases"
@@ -127,7 +138,7 @@ export function ShippingFeatures() {
 				<Feature
 					icon={Search}
 					title="Search"
-					body="Find repositories and people from the search page, and issues and pull requests from their lists or through the API."
+					body="Find a project, a person, or that issue you remember reading. Search repositories and people, or narrow down a list of issues and pull requests."
 				>
 					<Link
 						to="/$owner/$name/issues"
@@ -141,7 +152,7 @@ export function ShippingFeatures() {
 				<Feature
 					icon={Bell}
 					title="Notifications"
-					body="Mentions, assignments, replies and state changes land in an inbox you can filter and mark read."
+					body="Keep up with replies, mentions, and work assigned to you. Filter your inbox and mark things read as you go."
 				>
 					<Link to="/notifications" className={LINK_CLASS}>
 						Your inbox
@@ -151,7 +162,7 @@ export function ShippingFeatures() {
 				<Feature
 					icon={MessagesSquare}
 					title="Discussions"
-					body="Threads with categories, answers, pinning and locking, on the same numbering as issues, readable through GraphQL and the web."
+					body="Ask a question, talk through an idea, or help someone find an answer. Give conversations a place beside the code."
 				>
 					<Link
 						to="/$owner/$name/discussions"
@@ -165,7 +176,7 @@ export function ShippingFeatures() {
 				<Feature
 					icon={BookOpen}
 					title="Wikis"
-					body="Each repository's wiki is a git repository you can clone and push, and pages you can read and edit on the web."
+					body="Write down what the next person needs to know. Edit your project’s wiki in the browser, or clone it and write with your own tools."
 				>
 					<Link
 						to="/$owner/$name/wiki"
@@ -179,7 +190,7 @@ export function ShippingFeatures() {
 				<Feature
 					icon={Code2}
 					title="Gists"
-					body="Small multi-file snippets that are real git repositories: create them with the API or gh, clone them, and star and fork them."
+					body="Give a useful snippet a home of its own. Share a few files, clone them later, or fork something you’d like to build on."
 				>
 					<Link to="/gist" className={LINK_CLASS}>
 						Browse gists
@@ -189,44 +200,42 @@ export function ShippingFeatures() {
 				<Feature
 					icon={KanbanSquare}
 					title="Projects"
-					body="Projects v2 with fields and items, available through GraphQL, with a list and a table view on the web."
+					body="Make room for the plan, too. Organize work with custom fields, and see it in a list or table."
 				>
 					<Link
 						to="/users/$login/projects"
 						params={{ login: DEMO_REPO.owner }}
 						className={LINK_CLASS}
 					>
-						Projects of the owner
+						Explore the projects
 						<ArrowRight aria-hidden="true" className="size-4" />
 					</Link>
 				</Feature>
 				<Feature
 					icon={Lock}
 					title="Branch protection"
-					body="Rules per branch pattern require reviews, code owner approval and status checks, and block force pushes and deletions at push and merge."
+					body="Give important branches a little care. Require reviews and checks before merging, and protect them from force pushes and deletion."
 				>
-					<Link
-						to="/$owner/$name/settings/branches"
-						params={DEMO_REPO}
+					<a
+						href="https://docs.git.nandan.fyi/docs/guide#branch-rules-and-webhooks"
 						className={LINK_CLASS}
 					>
-						Branch settings
+						Learn about branch rules
 						<ArrowRight aria-hidden="true" className="size-4" />
-					</Link>
+					</a>
 				</Feature>
 				<Feature
 					icon={Webhook}
 					title="Webhooks"
-					body="Signed deliveries for push, issue and pull request events, with a delivery log and redelivery."
+					body="Keep other tools in the loop when code is pushed or a conversation moves forward. Check deliveries and send them again when needed."
 				>
-					<Link
-						to="/$owner/$name/settings/hooks"
-						params={DEMO_REPO}
+					<a
+						href="https://docs.git.nandan.fyi/docs/guide#branch-rules-and-webhooks"
 						className={LINK_CLASS}
 					>
-						Webhook settings
+						Learn about webhooks
 						<ArrowRight aria-hidden="true" className="size-4" />
-					</Link>
+					</a>
 				</Feature>
 			</div>
 		</section>
@@ -234,7 +243,7 @@ export function ShippingFeatures() {
 }
 
 const LINK_CLASS =
-	"inline-flex items-center gap-1.5 text-sm font-medium text-bjork-accent hover:underline";
+	"group inline-flex min-h-10 items-center gap-2 rounded-md text-sm font-medium text-bjork-accent underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-bjork-accent";
 
 function Feature({
 	icon: Icon,
@@ -248,15 +257,15 @@ function Feature({
 	children: ReactNode;
 }) {
 	return (
-		<article className="flex flex-col rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-6 shadow-(--bjork-shadow-surface)">
+		<article className="flex h-full flex-col rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-6 shadow-(--bjork-shadow-surface) transition-colors hover:border-bjork-border">
 			<span className="flex size-10 items-center justify-center rounded-[12px] bg-bjork-accent-soft text-bjork-accent">
 				<Icon aria-hidden="true" className="size-5" />
 			</span>
-			<h3 className="mt-5 text-[15px] font-semibold text-bjork-text">
+			<h3 className="mt-5 text-base leading-6 font-semibold text-balance text-bjork-text">
 				{title}
 			</h3>
 			<p className="mt-2 text-sm leading-6 text-bjork-text-muted">{body}</p>
-			<div className="mt-4 pt-1">{children}</div>
+			<div className="mt-auto pt-5">{children}</div>
 		</article>
 	);
 }

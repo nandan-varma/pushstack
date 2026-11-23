@@ -31,7 +31,7 @@ async function renderHome() {
 		path: "/",
 		component: () => (
 			<>
-				<ShippingFeatures />
+				<ShippingFeatures compareSpec="abc123...main" />
 				<BuiltWithItself />
 			</>
 		),
@@ -50,22 +50,22 @@ test("every shipping feature links to the demo repository", async () => {
 	expect(
 		screen.getByRole("heading", {
 			level: 2,
-			name: "What this instance serves today.",
+			name: "Room for the work around your code.",
 		}),
 	).toBeInTheDocument();
 	expect(
 		screen.getByRole("heading", {
 			level: 3,
-			name: "Forks and pull requests from them",
+			name: "Make it your own. Bring it back.",
 		}),
 	).toBeInTheDocument();
 
 	const links: [string, string][] = [
-		["Forks of this repository", "/nandan/pushstack/forks"],
-		["Compare branches", "/nandan/pushstack/compare/main"],
-		["The issue tracker", "/nandan/pushstack/issues"],
+		["Explore the forks", "/nandan/pushstack/forks"],
+		["Compare recent changes", "/nandan/pushstack/compare/abc123...main"],
+		["Explore the issues", "/nandan/pushstack/issues"],
 		["Review a pull request", "/nandan/pushstack/pulls"],
-		["Commits on main", "/nandan/pushstack/commits/main"],
+		["Browse the commits", "/nandan/pushstack/commits/main"],
 		["Releases", "/nandan/pushstack/releases"],
 		["Search the issues", "/nandan/pushstack/issues"],
 		["Your inbox", "/notifications"],
@@ -79,7 +79,10 @@ test("the project links to its own issues and pull requests", async () => {
 	await renderHome();
 
 	expect(
-		screen.getByRole("heading", { level: 2, name: "Built with itself" }),
+		screen.getByRole("heading", {
+			level: 2,
+			name: "We’re building here, too.",
+		}),
 	).toBeInTheDocument();
 	expect(
 		screen.getByRole("link", { name: "nandan/pushstack" }),

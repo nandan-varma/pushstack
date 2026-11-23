@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
 	ArrowRight,
@@ -10,28 +9,16 @@ import {
 } from "lucide-react";
 import { RelativeTime } from "@/components/RelativeTime";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-	repositoryByNameQueryOptions,
-	repositoryCommitsQueryOptions,
-} from "@/lib/query-options";
 import { DEMO_REPO, SITE_URL } from "@/lib/site";
+
+import { useDemoRepository } from "./useDemoRepository";
 
 const { owner, name } = DEMO_REPO;
 const CLONE_URL = `${SITE_URL}/${owner}/${name}.git`;
 
 export function LiveRepoPreview() {
-	const { data: repo, isError: repoMissing } = useQuery(
-		repositoryByNameQueryOptions({ owner, name }),
-	);
-	const branch = repo?.defaultBranch ?? "main";
-	const { data: commits, isError: commitsFailed } = useQuery({
-		...repositoryCommitsQueryOptions({
-			repoId: repo?.id ?? 0,
-			branchName: branch,
-			limit: 5,
-		}),
-		enabled: !!repo,
-	});
+	const { repo, repoFetched, branch, commits, commitsFetched } =
+		useDemoRepository();
 
 	return (
 		<div className="overflow-hidden rounded-[20px] border border-bjork-border-muted bg-bjork-surface text-left shadow-(--bjork-shadow-surface)">
@@ -42,14 +29,16 @@ export function LiveRepoPreview() {
 					className="flex min-w-0 items-center gap-2 text-sm font-medium text-bjork-text no-underline hover:underline"
 				>
 					<span className="relative flex size-2 shrink-0">
-						<span className="absolute inline-flex size-full rounded-full bg-success opacity-60" />
-						<span className="relative inline-flex size-2 rounded-full bg-success" />
+						<span className="absolute inline-flex size-full rounded-full bg-bjork-text-soft opacity-60" />
+						<span
+							className={`relative inline-flex size-2 rounded-full ${commits ? "bg-success" : "bg-bjork-text-soft"}`}
+						/>
 					</span>
 					<span className="truncate">
 						{owner} / {name}
 					</span>
 					<span className="hidden rounded-full border border-bjork-border bg-bjork-field-inset px-2 py-0.5 text-[11px] font-medium text-bjork-text-soft sm:inline">
-						Live
+						{commits ? "Live" : repoFetched ? "Preview" : "Loading"}
 					</span>
 				</Link>
 				<div className="flex shrink-0 items-center gap-2 text-xs text-bjork-text-soft">
@@ -69,14 +58,15 @@ export function LiveRepoPreview() {
 					<p className="text-xs font-semibold tracking-[0.14em] text-bjork-text-soft uppercase">
 						Latest commits
 					</p>
-					<div className="mt-4 space-y-2">
-						{commits ? (
+					{/* Hover preloads share these queries; keep their retries from shifting the page. */}
+					<div className="mt-4 min-h-[342px] space-y-2">
+						{commits?.length ? (
 							commits.map((commit) => (
 								<Link
 									key={commit.sha}
 									to="/$owner/$name/commit/$sha"
 									params={{ owner, name, sha: commit.sha }}
-									className="flex items-center gap-3 rounded-[12px] bg-bjork-field-inset p-3 no-underline transition-colors hover:bg-bjork-surface-hover"
+									className="flex h-[62px] items-center gap-3 rounded-[12px] bg-bjork-field-inset p-3 no-underline transition-colors hover:bg-bjork-surface-hover"
 								>
 									<GitCommitHorizontal className="size-4 shrink-0 text-bjork-text-soft" />
 									<div className="min-w-0 flex-1">
@@ -93,13 +83,21 @@ export function LiveRepoPreview() {
 									</code>
 								</Link>
 							))
-						) : repoMissing || commitsFailed ? (
+						) : commits ? (
+							<p className="text-sm text-bjork-text-soft">No commits yet.</p>
+						) : repoFetched && !repo ? (
+							<p className="text-sm text-bjork-text-soft">
+								{repo === null
+									? "This repository isn't available."
+									: "Couldn't load commits right now."}
+							</p>
+						) : commitsFetched ? (
 							<p className="text-sm text-bjork-text-soft">
 								Couldn't load commits right now.
 							</p>
 						) : (
 							[1, 2, 3, 4, 5].map((i) => (
-								<Skeleton key={i} className="h-[54px] rounded-lg" />
+								<Skeleton key={i} className="h-[62px] rounded-lg" />
 							))
 						)}
 					</div>
@@ -129,25 +127,21 @@ export function LiveRepoPreview() {
 				</div>
 				<div className="bg-background/50 p-5 font-mono text-xs leading-6 text-bjork-text sm:p-7">
 					<div className="mb-5 flex items-center gap-2 text-bjork-text-soft">
-						<Terminal className="size-4" /> Try it — no account needed
+						<Terminal className="size-4" /> Try a public repository
 					</div>
 					<p className="break-all">
 						<span className="text-primary">$</span> git clone {CLONE_URL}
 					</p>
-					<p className="mt-3 text-bjork-text-soft">Cloning into '{name}'...</p>
-					<p className="text-bjork-text-soft">Receiving objects: 100%, done.</p>
-					<p className="mt-5 text-bjork-text-soft"># then, with an account:</p>
+					<p className="mt-5 text-bjork-text-soft">
+						# use the GitHub CLI with PushStack
+					</p>
 					<p className="break-all">
-						<span className="text-primary">$</span> git remote add pushstack{" "}
-						{SITE_URL}/you/repo.git
+						<span className="text-primary">$</span> gh auth login --hostname{" "}
+						{new URL(SITE_URL).hostname}
 					</p>
-					<p>
-						<span className="text-primary">$</span> git push pushstack main
-					</p>
-					<p className="mt-3 text-primary">✓ main updated · review ready</p>
-					<p className="mt-4">
-						<span className="text-primary">$</span>{" "}
-						<span className="text-primary">_</span>
+					<p className="mt-3 break-all">
+						<span className="text-primary">$</span> gh repo view{" "}
+						{new URL(SITE_URL).hostname}/{owner}/{name}
 					</p>
 				</div>
 			</div>

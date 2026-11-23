@@ -21,7 +21,7 @@ test.describe("Route Navigation E2E", () => {
 	test("home page renders hero content", async ({ page }) => {
 		await page.goto("/");
 		await expect(page.locator("h1")).toContainText(
-			"Your code, on a forge that speaks GitHub.",
+			"A new home for your code. Keep the way you work.",
 		);
 	});
 
@@ -49,21 +49,21 @@ test.describe("Route Navigation E2E", () => {
 
 	test("back button restores previous page content", async ({ page }) => {
 		await page.goto("/");
-		await expect(page.locator("h1")).toContainText("speaks GitHub");
+		await expect(page.locator("h1")).toContainText("A new home for your code.");
 
 		await page.getByRole("link", { name: "Sign in" }).click();
 		await expect(page).toHaveURL("/login");
 
 		await page.goBack();
 		await expect(page).toHaveURL("/");
-		await expect(page.locator("h1")).toContainText("speaks GitHub");
+		await expect(page.locator("h1")).toContainText("A new home for your code.");
 	});
 
 	test("about page renders via direct navigation", async ({ page }) => {
 		await page.goto("/about");
 		await expect(page).toHaveURL("/about");
 		await expect(page.locator("h1")).toContainText(
-			"A code forge that behaves like GitHub",
+			"A fresh start, with familiar ways to work.",
 		);
 	});
 

@@ -46,3 +46,12 @@ A new publishable workspace needs its `@v*` tag pattern in the workflow, a
 `files` list including the build output, `publishConfig.access: "public"` for a
 scoped name, and that manual bootstrap; pack and publish are shared, keyed by
 package name.
+
+## Keep dogfooding current
+
+After merging or publishing, run `node scripts/sync-dogfood.mjs` to inspect the
+GitHub → PushStack sync, then rerun with `--apply`. It uses the existing `gh`
+logins and named remotes, fast-forwards main, adds missing immutable tags, and
+copies published release notes. Divergent history, moved tags, and release
+assets that need a separate transfer stop the sync; it never force-pushes or
+prunes destination data.

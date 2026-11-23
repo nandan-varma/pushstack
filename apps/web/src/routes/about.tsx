@@ -32,14 +32,14 @@ function About() {
 				About
 			</p>
 			<h1 className="mt-4 text-4xl font-semibold tracking-[-0.04em] text-balance text-bjork-text sm:text-5xl">
-				A code forge that behaves like GitHub, built to be easy to run.
+				A fresh start, with familiar ways to work.
 			</h1>
 			<p className="mt-6 text-lg leading-8 text-bjork-text-muted">
-				PushStack hosts Git repositories with issues, pull requests and reviews.
-				Where there's a question of how something should behave, the answer is
-				"the way GitHub does it": the same names, permissions and API. So moving
-				a project — and the scripts around it — is a change of URL, not a
-				rewrite.
+				Your projects come with habits, tools, and people you care about.
+				PushStack gives them a new home, with repositories, issues, pull
+				requests, and reviews in one place. We follow GitHub’s conventions so
+				you have less to relearn, from opening a pull request to using the CLI
+				and APIs. Here’s a little about what’s underneath.
 			</p>
 
 			<dl className="mt-12 divide-y divide-bjork-border-muted rounded-[18px] border border-bjork-border-muted bg-bjork-surface shadow-(--bjork-shadow-surface)">
