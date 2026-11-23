@@ -147,7 +147,7 @@ export interface DraftIssueNode {
 type ProjectContentNode = IssueNode | PullRequestNode | DraftIssueNode;
 
 function projectNode(row: ProjectView, ownerLogin: string): ProjectNode {
-	const path = `/${ownerLogin}/projects/${row.number}`;
+	const path = `/users/${ownerLogin}/projects/${row.number}`;
 	return {
 		__typename: "ProjectV2",
 		id: encodeProjectNodeId("ProjectV2", row.id, row.id),

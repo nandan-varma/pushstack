@@ -209,8 +209,8 @@ describe("projects reads", () => {
 			shortDescription: "What comes next",
 			public: true,
 			closed: false,
-			url: expect.stringContaining("/alice/projects/"),
-			resourcePath: expect.stringMatching(/^\/alice\/projects\/\d+$/),
+			url: expect.stringContaining("/users/alice/projects/"),
+			resourcePath: expect.stringMatching(/^\/users\/alice\/projects\/\d+$/),
 			owner: { login: "alice" },
 		});
 	});
