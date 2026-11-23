@@ -1,5 +1,4 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { Badge } from "@/components/ui/badge";
 import type { ProjectField } from "@/server/projects";
 
 /** The URL state the toolbar owns; the route's search carries it. */
@@ -22,16 +21,12 @@ export function ProjectBoardToolbar({
 	view,
 	search,
 	fields,
-	itemCount,
-	truncated,
 }: {
 	login: string;
 	number: number;
 	view: "table" | "board";
 	search: ProjectViewSearch;
 	fields: ProjectField[];
-	itemCount: number;
-	truncated: boolean;
 }) {
 	const navigate = useNavigate({ from: "/users/$login/projects/$number" });
 	const go = (next: ProjectViewSearch) => {
@@ -149,9 +144,6 @@ export function ProjectBoardToolbar({
 								))}
 						</select>
 					</label>
-					{truncated && (
-						<Badge variant="outline">Showing the first {itemCount}</Badge>
-					)}
 				</>
 			)}
 		</div>

@@ -1,7 +1,32 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectBoard } from "@/components/project/ProjectBoard";
 import type { ProjectField, ProjectTableRow } from "@/server/projects";
+
+vi.mock("@tanstack/react-router", () => ({
+	Link: ({
+		to,
+		params,
+		children,
+		className,
+	}: {
+		to: string;
+		params: Record<string, string>;
+		children: ReactNode;
+		className?: string;
+	}) => (
+		<a
+			className={className}
+			href={to
+				.replace(/\/\{-\$\w+\}/g, "")
+				.replace(/\$(\w+)/g, (_, key) => params[key])}
+		>
+			{children}
+		</a>
+	),
+}));
 
 const statusField: ProjectField = {
 	id: 1,
@@ -133,4 +158,26 @@ describe("ProjectBoard", () => {
 			screen.getByText(/No single-select field named "Points"/),
 		).toBeInTheDocument();
 	});
+});
+
+it("board issue and pull request titles open the underlying content", () => {
+	renderBoard();
+	expect(screen.getByRole("link", { name: "Ship the board" })).toHaveAttribute(
+		"href",
+		"/alice/shown/issues/7",
+	);
+	expect(screen.getByRole("link", { name: "Change it" })).toHaveAttribute(
+		"href",
+		"/alice/shown/pull/8",
+	);
+});
+
+it("read-only draft cards open details without edit controls", async () => {
+	const user = userEvent.setup();
+	renderBoard({ canWrite: false });
+	await user.click(screen.getByRole("button", { name: "Draft plan" }));
+	expect(
+		await screen.findByRole("dialog", { name: "Draft plan" }),
+	).toHaveTextContent("No description.");
+	expect(screen.queryByRole("button", { name: /Edit draft/ })).toBeNull();
 });

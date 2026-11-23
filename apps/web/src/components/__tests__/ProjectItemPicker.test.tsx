@@ -1,9 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ProjectItemPicker } from "@/components/project/ProjectItemPicker";
 
-const onSearch = vi.fn();
+const searchItems = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/query-options", () => ({
+	projectAddableItemsQueryOptions: (
+		login: string,
+		number: number,
+		query: string,
+	) => ({
+		queryKey: ["project-items", login, number, query],
+		queryFn: () => searchItems(query),
+	}),
+}));
 const onAdd = vi.fn();
 
 const results = [
@@ -28,17 +39,22 @@ const results = [
 function renderPicker(
 	props: Partial<Parameters<typeof ProjectItemPicker>[0]> = {},
 ) {
+	searchItems.mockResolvedValue({ items: results });
 	return render(
-		<ProjectItemPicker
-			login="alice"
-			number={3}
-			itemCount={2}
-			pending={false}
-			results={results}
-			onSearch={onSearch}
-			onAdd={onAdd}
-			{...props}
-		/>,
+		<QueryClientProvider
+			client={
+				new QueryClient({ defaultOptions: { queries: { retry: false } } })
+			}
+		>
+			<ProjectItemPicker
+				login="alice"
+				number={3}
+				itemCount={2}
+				pending={false}
+				onAdd={onAdd}
+				{...props}
+			/>
+		</QueryClientProvider>,
 	);
 }
 
@@ -47,7 +63,7 @@ describe("ProjectItemPicker", () => {
 		const user = userEvent.setup();
 		renderPicker();
 		await user.click(screen.getByRole("button", { name: "Add item" }));
-		expect(screen.getByText("Visible work")).toBeInTheDocument();
+		expect(await screen.findByText("Visible work")).toBeInTheDocument();
 		expect(screen.getByText("alice/shown#1")).toBeInTheDocument();
 		expect(screen.getByText("Pull request")).toBeInTheDocument();
 
@@ -63,15 +79,50 @@ describe("ProjectItemPicker", () => {
 			screen.getByLabelText("Search issues and pull requests"),
 			"vis",
 		);
-		expect(onSearch).toHaveBeenLastCalledWith("vis");
+		await waitFor(() => expect(searchItems).toHaveBeenLastCalledWith("vis"));
 	});
 
 	it("asks to type when there are no results", async () => {
 		const user = userEvent.setup();
-		renderPicker({ results: [] });
+		renderPicker();
+		searchItems.mockResolvedValue({ items: [] });
 		await user.click(screen.getByRole("button", { name: "Add item" }));
 		expect(
-			screen.getByText("Type to search issues and pull requests you can read."),
+			await screen.findByText(
+				"Type to search issues and pull requests you can read.",
+			),
 		).toBeInTheDocument();
 	});
+});
+
+it("only searches after the owner opens the picker", async () => {
+	const user = userEvent.setup();
+	renderPicker();
+	expect(searchItems).not.toHaveBeenCalled();
+	await user.click(screen.getByRole("button", { name: "Add item" }));
+	await waitFor(() => expect(searchItems).toHaveBeenCalledWith(""));
+});
+
+it("distinguishes a failed search from no matches and can retry", async () => {
+	const user = userEvent.setup();
+	renderPicker();
+	searchItems.mockRejectedValueOnce(new Error("offline"));
+	await user.click(screen.getByRole("button", { name: "Add item" }));
+	expect(await screen.findByRole("alert")).toHaveTextContent("Couldn’t search");
+	expect(
+		screen.queryByText("Type to search issues and pull requests you can read."),
+	).toBeNull();
+	await user.click(screen.getByRole("button", { name: "Try again" }));
+	expect(await screen.findByText("Visible work")).toBeInTheDocument();
+});
+
+it("shows loading instead of no matches while a search is pending", async () => {
+	const user = userEvent.setup();
+	renderPicker();
+	searchItems.mockImplementationOnce(() => new Promise(() => {}));
+	await user.click(screen.getByRole("button", { name: "Add item" }));
+	expect(await screen.findByRole("status")).toHaveTextContent("Searching");
+	expect(
+		screen.queryByText("Type to search issues and pull requests you can read."),
+	).toBeNull();
 });

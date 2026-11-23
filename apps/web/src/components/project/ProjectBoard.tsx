@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import type {
 	ProjectField,
 	ProjectFieldValueInput,
 	ProjectTableRow,
 } from "@/server/projects";
+import { ProjectItemTitle } from "./ProjectItemTitle";
 
 /**
  * The board: one column per option of the group-by single-select field, a card
@@ -105,29 +105,11 @@ export function ProjectBoard({
 									aria-label={`${row.title} in ${column.name}`}
 									className="space-y-1.5 rounded-xl border border-bjork-border-muted bg-bjork-surface p-3 text-sm shadow-[var(--bjork-shadow-soft)]"
 								>
-									<button
-										type="button"
-										className="text-left font-medium text-bjork-text hover:text-bjork-accent"
-										onClick={() => {
-											if (row.kind === "draft") onEditDraft?.(row);
-										}}
-									>
-										{row.title}
-									</button>
-									<div className="flex items-center gap-1.5">
-										<Badge variant="outline">
-											{row.kind === "pull_request"
-												? "Pull request"
-												: row.kind === "issue"
-													? "Issue"
-													: "Draft"}
-										</Badge>
-										{row.repoOwner && row.repoName && row.number !== null && (
-											<span className="font-mono text-xs text-bjork-text-soft">
-												{row.repoOwner}/{row.repoName}#{row.number}
-											</span>
-										)}
-									</div>
+									<ProjectItemTitle
+										row={row}
+										canWrite={canWrite}
+										onEditDraft={onEditDraft}
+									/>
 									{secondary && (
 										<p className="text-xs text-bjork-text-medium">
 											{secondary.name}:{" "}

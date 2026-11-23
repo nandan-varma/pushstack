@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { MAX_PROJECT_FILTER_CHARS, MAX_PROJECT_ITEMS } from "@/lib/limits";
-import type { AddableProjectItem } from "@/server/project-store";
+import { projectAddableItemsQueryOptions } from "@/lib/query-options";
 
 /**
  * The add-item picker: searches the issues and pull requests the viewer can
@@ -22,32 +23,28 @@ export function ProjectItemPicker({
 	number,
 	itemCount,
 	pending,
-	results,
-	onSearch,
 	onAdd,
 }: {
 	login: string;
 	number: number;
 	itemCount: number;
 	pending: boolean;
-	results: AddableProjectItem[];
-	onSearch: (query: string) => void;
 	onAdd: (issueId: number) => void;
 }) {
 	const [open, setOpen] = useState(false);
 	const [query, setQuery] = useState("");
 
-	const search = (next: string) => {
-		setQuery(next);
-		onSearch(next);
-	};
+	const { data, isFetching, isError, refetch } = useQuery({
+		...projectAddableItemsQueryOptions(login, number, query),
+		enabled: open,
+	});
 
 	return (
 		<Dialog
 			open={open}
 			onOpenChange={(next) => {
 				setOpen(next);
-				if (next) search("");
+				if (next) setQuery("");
 			}}
 		>
 			<DialogTrigger asChild>
@@ -65,9 +62,22 @@ export function ProjectItemPicker({
 						value={query}
 						maxLength={MAX_PROJECT_FILTER_CHARS}
 						placeholder="Search by title or number"
-						onChange={(event) => search(event.target.value)}
+						onChange={(event) => setQuery(event.target.value)}
 					/>
-					{results.length === 0 ? (
+					{isFetching ? (
+						<p role="status" className="py-4 text-sm text-bjork-text-soft">
+							Searching issues and pull requests…
+						</p>
+					) : isError ? (
+						<div role="alert" className="space-y-2 py-4">
+							<p className="text-sm text-bjork-text-muted">
+								Couldn’t search issues and pull requests.
+							</p>
+							<Button variant="outline" onClick={() => refetch()}>
+								Try again
+							</Button>
+						</div>
+					) : data?.items.length === 0 ? (
 						<p className="py-4 text-sm text-bjork-text-soft">
 							{query
 								? "No readable issue or pull request matches."
@@ -75,7 +85,7 @@ export function ProjectItemPicker({
 						</p>
 					) : (
 						<ul className="max-h-72 space-y-1 overflow-y-auto">
-							{results.map((item) => (
+							{data?.items.map((item) => (
 								<li key={item.id}>
 									<Button
 										variant="ghost"

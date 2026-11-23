@@ -1,7 +1,4 @@
-import { Link } from "@tanstack/react-router";
-import { Pencil } from "lucide-react";
-import { lazy, Suspense, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -16,83 +13,9 @@ import type {
 	ProjectFieldValueInput,
 	ProjectTableRow,
 } from "@/server/projects";
-
-const MarkdownRenderer = lazy(() => import("@/components/MarkdownRenderer"));
+import { ProjectItemTitle } from "./ProjectItemTitle";
 
 const NO_OPTION = "none";
-
-function RowTitle({
-	row,
-	canWrite,
-	onEditDraft,
-}: {
-	row: ProjectTableRow;
-	canWrite: boolean;
-	onEditDraft?: (row: ProjectTableRow) => void;
-}) {
-	if (row.kind === "draft") {
-		return (
-			<div className="min-w-0 space-y-1">
-				<p className="flex items-center gap-1.5 font-medium text-bjork-text">
-					{row.title}
-					{canWrite && onEditDraft && (
-						<Button
-							size="icon-xs"
-							variant="ghost"
-							aria-label={`Edit draft ${row.title}`}
-							onClick={() => onEditDraft(row)}
-						>
-							<Pencil aria-hidden="true" />
-						</Button>
-					)}
-				</p>
-				{row.body && (
-					<div className="line-clamp-2 text-sm text-bjork-text-medium">
-						<Suspense fallback={null}>
-							<MarkdownRenderer content={row.body} />
-						</Suspense>
-					</div>
-				)}
-			</div>
-		);
-	}
-	if (!row.repoOwner || !row.repoName || row.number === null) {
-		return <span className="text-bjork-text-soft">—</span>;
-	}
-	const params = {
-		owner: row.repoOwner,
-		name: row.repoName,
-		id: String(row.number),
-	};
-	const label = `${row.repoOwner}/${row.repoName}#${row.number}`;
-	return (
-		<div className="min-w-0 space-y-0.5">
-			{row.kind === "pull_request" ? (
-				<Link
-					to="/$owner/$name/pull/$id/{-$tab}"
-					params={params}
-					className="font-medium text-bjork-text hover:text-bjork-accent"
-				>
-					{row.title}
-				</Link>
-			) : (
-				<Link
-					to="/$owner/$name/issues/$id"
-					params={params}
-					className="font-medium text-bjork-text hover:text-bjork-accent"
-				>
-					{row.title}
-				</Link>
-			)}
-			<p className="flex items-center gap-1.5 text-xs text-bjork-text-soft">
-				<Badge variant="outline">
-					{row.kind === "pull_request" ? "Pull request" : "Issue"}
-				</Badge>
-				<span className="font-mono">{label}</span>
-			</p>
-		</div>
-	);
-}
 
 /**
  * A cell's edit controls: the field's own type decides the input, and the
@@ -115,6 +38,7 @@ function CellEditor({
 	onClear: () => void;
 }) {
 	const [draft, setDraft] = useState(value ?? "");
+	useEffect(() => setDraft(value ?? ""), [value]);
 	const save = () => {
 		if (field.dataType === "TEXT") {
 			if (draft.trim()) onSave({ type: "TEXT", text: draft });
@@ -131,6 +55,7 @@ function CellEditor({
 		const selected = field.options.find((option) => option.name === value);
 		return (
 			<Select
+				disabled={pending}
 				value={selected?.id ?? NO_OPTION}
 				onValueChange={(optionId) => {
 					if (optionId === NO_OPTION) {
@@ -241,7 +166,7 @@ export function ProjectTable({
 							className="border-b border-bjork-border-muted align-top last:border-0"
 						>
 							<td className="px-4 py-3">
-								<RowTitle
+								<ProjectItemTitle
 									row={row}
 									canWrite={canWrite}
 									onEditDraft={onEditDraft}

@@ -64,8 +64,6 @@ function renderToolbar(
 			view="board"
 			search={search}
 			fields={fields}
-			itemCount={12}
-			truncated={false}
 		/>,
 	);
 }
@@ -128,21 +126,5 @@ describe("ProjectBoardToolbar", () => {
 				.querySelectorAll("option"),
 		).map((option) => option.textContent);
 		expect(onCards).not.toContain("Team");
-	});
-
-	it("shows the truncation badge for a project above the client cap", () => {
-		renderToolbar({ q: "x" });
-		render(
-			<ProjectBoardToolbar
-				login="alice"
-				number={3}
-				view="board"
-				search={{}}
-				fields={fields}
-				itemCount={650}
-				truncated
-			/>,
-		);
-		expect(screen.getByText("Showing the first 650")).toBeInTheDocument();
 	});
 });

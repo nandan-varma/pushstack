@@ -234,3 +234,40 @@ describe("ProjectTable", () => {
 		expect(onEditDraft).toHaveBeenCalledWith(rows[2]);
 	});
 });
+
+it("refreshes a cell editor after clearing or externally updating its value", () => {
+	const props = {
+		fields: fieldsWithIds,
+		rows,
+		emptyMessage: "Empty",
+		canWrite: true,
+		onSetValue: vi.fn(),
+		onClearValue: vi.fn(),
+	};
+	const view = renderTable(props);
+	expect(screen.getByLabelText("Set Notes for Visible work")).toHaveValue(
+		"Needs review",
+	);
+	const cleared = rows.map((row) =>
+		row.id === 1 ? { ...row, values: { ...row.values, notes: null } } : row,
+	);
+	view.rerender(
+		<QueryClientProvider client={queryClient}>
+			<ProjectTable {...props} rows={cleared} />
+		</QueryClientProvider>,
+	);
+	expect(screen.getByLabelText("Set Notes for Visible work")).toHaveValue("");
+	const refreshed = rows.map((row) =>
+		row.id === 1
+			? { ...row, values: { ...row.values, notes: "Updated elsewhere" } }
+			: row,
+	);
+	view.rerender(
+		<QueryClientProvider client={queryClient}>
+			<ProjectTable {...props} rows={refreshed} />
+		</QueryClientProvider>,
+	);
+	expect(screen.getByLabelText("Set Notes for Visible work")).toHaveValue(
+		"Updated elsewhere",
+	);
+});

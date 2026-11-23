@@ -24,16 +24,10 @@ import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	MAX_PROJECT_BOARD_ITEMS,
 	MAX_PROJECT_FIELD_NAME_CHARS,
 	MAX_PROJECT_FILTER_CHARS,
 } from "@/lib/limits";
-import { sortProjectItems } from "@/lib/project-filter";
-import {
-	projectAddableItemsQueryOptions,
-	queryKeys,
-	userProjectQueryOptions,
-} from "@/lib/query-options";
+import { queryKeys, userProjectQueryOptions } from "@/lib/query-options";
 import type {
 	ProjectFieldValueInput,
 	ProjectTableRow,
@@ -80,12 +74,24 @@ export const Route = createFileRoute("/users/$login/projects/$number")({
 				? search.by.slice(0, MAX_PROJECT_FIELD_NAME_CHARS)
 				: undefined,
 	}),
-	loaderDeps: ({ search }) => ({ q: search.q ?? "", page: search.page ?? 1 }),
+	loaderDeps: ({ search }) => ({
+		q: search.q ?? "",
+		page: search.page ?? 1,
+		sort: search.sort ?? "title",
+		dir: search.dir ?? "asc",
+	}),
 	loader: ({ params, deps, context: { queryClient } }) => {
 		const number = Number(params.number);
 		if (!Number.isInteger(number) || number < 1) throw notFound();
 		return queryClient.ensureQueryData(
-			userProjectQueryOptions(params.login, number, deps.q, deps.page),
+			userProjectQueryOptions(
+				params.login,
+				number,
+				deps.q,
+				deps.page,
+				deps.sort,
+				deps.dir,
+			),
 		);
 	},
 	component: ProjectPage,
@@ -116,9 +122,15 @@ function ProjectPage() {
 	const queryClient = useQueryClient();
 	const { toast } = useToast();
 	const { data, isLoading } = useQuery(
-		userProjectQueryOptions(login, Number(number), q ?? "", page ?? 1),
+		userProjectQueryOptions(
+			login,
+			Number(number),
+			q ?? "",
+			page ?? 1,
+			sort ?? "title",
+			dir ?? "asc",
+		),
 	);
-	const [pickerQuery, setPickerQuery] = useState("");
 	const [draftForm, setDraftForm] = useState<{
 		open: boolean;
 		itemId: number | null;
@@ -167,10 +179,6 @@ function ProjectPage() {
 		onError: (error: Error) => writeError(error, "Couldn't clear the value"),
 	});
 
-	const addable = useQuery(
-		projectAddableItemsQueryOptions(login, Number(number), pickerQuery),
-	);
-
 	if (isLoading || !data) {
 		return (
 			<Page className="space-y-4">
@@ -182,19 +190,18 @@ function ProjectPage() {
 	}
 
 	const { project } = data;
+	const viewSearch: ProjectViewSearch = { q, view, group, sort, dir, by };
 	const setFilter = (next: string) =>
-		navigate({ search: { q: next || undefined }, replace: true });
+		navigate({
+			search: { ...viewSearch, q: next || undefined, page: undefined },
+			replace: true,
+		});
 	const pageLink = (target: number) => ({
 		to: "/users/$login/projects/$number" as const,
 		params: { login, number },
-		search: { q: q || undefined, page: target > 1 ? target : undefined },
+		search: { ...viewSearch, page: target > 1 ? target : undefined },
 	});
 	const canWrite = data.canWrite && !project.closed;
-	const viewSearch: ProjectViewSearch = { q, view, group, sort, dir, by };
-	const sorted = sortProjectItems([...data.items], {
-		field: sort ?? "title",
-		direction: dir ?? "asc",
-	});
 	const selects = data.fields.filter(
 		(field) => field.dataType === "SINGLE_SELECT",
 	);
@@ -276,12 +283,10 @@ function ProjectPage() {
 						{canWrite && (
 							<span className="flex items-center gap-2">
 								<ProjectItemPicker
+									itemCount={data.itemCount}
 									login={login}
 									number={Number(number)}
-									itemCount={data.itemCount}
 									pending={addItem.isPending}
-									results={addable.data?.items ?? []}
-									onSearch={setPickerQuery}
 									onAdd={(issueId) =>
 										addItem.mutate({
 											data: {
@@ -322,20 +327,13 @@ function ProjectPage() {
 				placeholder="Filter by title, is:issue, is:pr, is:draft or status:Todo"
 				ariaLabel="Filter project items"
 			/>
-			{data.truncated && (
-				<p className="text-xs text-bjork-text-soft">
-					Showing the first {MAX_PROJECT_BOARD_ITEMS} of {data.itemCount} items;
-					filter to narrow the list.
-				</p>
-			)}
+
 			<ProjectBoardToolbar
 				login={login}
 				number={Number(number)}
 				view={view === "board" ? "board" : "table"}
 				search={viewSearch}
 				fields={data.fields}
-				itemCount={data.itemCount}
-				truncated={data.truncated}
 			/>
 			{canWrite && (
 				<ProjectFieldEditor
@@ -347,7 +345,7 @@ function ProjectPage() {
 			{view === "board" ? (
 				<ProjectBoard
 					fields={data.fields}
-					rows={sorted}
+					rows={data.items}
 					group={groupField}
 					by={by ?? ""}
 					canWrite={canWrite}
@@ -359,7 +357,7 @@ function ProjectPage() {
 			) : (
 				<ProjectTable
 					fields={data.fields}
-					rows={sorted}
+					rows={data.items}
 					emptyMessage={
 						q
 							? "No items match this filter."
