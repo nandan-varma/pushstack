@@ -1,8 +1,8 @@
 # PushStack
 
-A GitHub-compatible code forge: Git over HTTPS, repositories, issues, pull
-requests, code browsing, and GitHub's REST and GraphQL APIs. The instance at
-[git.nandan.fyi](https://git.nandan.fyi) hosts this project's own
+A GitHub-compatible home for your code: Git over HTTPS, repositories, issues,
+pull requests, code browsing, and GitHub's REST and GraphQL APIs. The instance
+at [git.nandan.fyi](https://git.nandan.fyi) hosts this project's own
 [issues](https://git.nandan.fyi/nandan/pushstack/issues) and
 [pull requests](https://git.nandan.fyi/nandan/pushstack/pulls).
 
