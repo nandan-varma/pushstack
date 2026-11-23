@@ -74,6 +74,12 @@ async function main() {
 		);
 	const sourceRepo = source.pathname.slice(1).replace(/\.git$/, "");
 	const destinationRepo = destination.pathname.slice(1).replace(/\.git$/, "");
+	if (
+		sourceRepo !== "nandan-varma/pushstack" ||
+		destinationRepo !== "nandan/pushstack"
+	) {
+		throw new Error("Run this workflow in the PushStack project checkout");
+	}
 	run("git", ["fetch", "origin", "--tags"]);
 	run("git", ["fetch", "pushstack", "main"]);
 	run("git", ["merge-base", "--is-ancestor", "pushstack/main", "origin/main"]);

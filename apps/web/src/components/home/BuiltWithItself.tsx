@@ -18,8 +18,7 @@ export function BuiltWithItself() {
 						We’re building here, too.
 					</h2>
 					<p className="mt-3 max-w-xl leading-7 text-bjork-text-muted">
-						Our code, ideas, and reviews live here, just like yours can. Follow
-						along in{" "}
+						Follow our code, ideas, and reviews in{" "}
 						<Link
 							to="/$owner/$name"
 							params={DEMO_REPO}
