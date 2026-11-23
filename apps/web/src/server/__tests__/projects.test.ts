@@ -356,4 +356,23 @@ describe("projects larger than the client board budget", () => {
 		expect(result.total).toBe(1);
 		expect(result.items[0].draftTitle).toBe("Task0501");
 	});
+
+	it("sorts unset field values after set ones when descending", async () => {
+		await db
+			.insert(projectV2Items)
+			.values({ projectId, draftTitle: "Task0999" });
+		const last = await getUserProject({
+			data: {
+				login: "alice",
+				number,
+				sort: "points",
+				dir: "desc",
+				page: 11,
+			},
+		});
+		expect(last.items.map((row) => row.title)).toEqual([
+			"Task0501",
+			"Task0999",
+		]);
+	});
 });
