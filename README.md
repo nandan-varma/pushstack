@@ -18,7 +18,11 @@ pnpm dev:local   # http://localhost:3000
 
 Local development uses PGlite and on-disk Git under `apps/web/.pushstack-local/`,
 needs no cloud accounts, and prints verification and password-reset links in the
-terminal. To run against real services, copy `apps/web/.env.example` to
+terminal. Startup also creates a public walkthrough for the homepage showcases.
+Its accounts are local fixtures; create your own account to try writing and reviews.
+Existing walkthrough data is kept when the server restarts.
+
+To run against real services, copy `apps/web/.env.example` to
 `apps/web/.env.local`; the
 [deployment guide](https://docs.git.nandan.fyi/docs/internals/deployment) lists
 the variables and storage requirements.

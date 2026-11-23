@@ -11,43 +11,11 @@
 import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
-import { PGlite } from "@electric-sql/pglite";
-import { pushSchema } from "drizzle-kit/api-postgres";
-import { drizzle } from "drizzle-orm/pglite";
-import * as appSchema from "../src/db/app-schema";
-import * as authSchema from "../src/db/schema";
 
 const localDir = path.resolve(
 	process.env.PUSHSTACK_LOCAL_DIR ?? ".pushstack-local",
 );
 mkdirSync(localDir, { recursive: true });
-
-const client = new PGlite(path.join(localDir, "db"));
-const schema = { ...authSchema, ...appSchema };
-const { apply, hints } = await pushSchema(schema, drizzle({ client })).catch(
-	(error: unknown) => {
-		// drizzle-kit's programmatic push can't ask whether a column or table
-		// was renamed or dropped, so an ambiguous change throws an internal
-		// "called without a HintsHandler" error. Say what to do instead.
-		if (error instanceof Error && error.message.includes("HintsHandler")) {
-			console.error(
-				`[dev:local] the schema renamed or dropped a column/table that ${localDir} still has, ` +
-					"and a non-interactive push can't tell which.\n" +
-					`[dev:local] delete ${localDir} (or set PUSHSTACK_LOCAL_DIR to a new directory) to start over.`,
-			);
-			process.exit(1);
-		}
-		throw error;
-	},
-);
-if (hints.length > 0) {
-	console.warn(
-		`[dev:local] schema change notes:\n  ${hints.map(({ hint }) => hint).join("\n  ")}\n` +
-			`[dev:local] applying anyway — delete ${localDir} if things look off`,
-	);
-}
-await apply();
-await client.close();
 
 const blank = [
 	"DATABASE_URL",
@@ -70,6 +38,18 @@ const env: NodeJS.ProcessEnv = {
 		process.env.BETTER_AUTH_SECRET ||
 		"pushstack-local-dev-secret-not-for-production",
 };
+
+const setup = spawn("pnpm", ["exec", "tsx", "scripts/seed-local.ts"], {
+	env,
+	stdio: "inherit",
+});
+await new Promise<void>((resolve, reject) => {
+	setup.once("error", reject);
+	setup.once("exit", (code) => {
+		if (code === 0) resolve();
+		else reject(new Error(`Local database setup exited with ${code}`));
+	});
+});
 
 console.info(`[dev:local] data in ${localDir}`);
 const vite = spawn(
