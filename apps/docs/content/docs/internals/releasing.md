@@ -52,6 +52,7 @@ package name.
 After merging or publishing, run `node scripts/sync-dogfood.mjs` to inspect the
 GitHub → PushStack sync, then rerun with `--apply`. It uses the existing `gh`
 logins and named remotes, fast-forwards main, adds missing immutable tags, and
-copies published release notes. Divergent history, moved tags, and release
-assets that need a separate transfer stop the sync; it never force-pushes or
-prunes destination data.
+copies published release notes, repairing the GitHub profile links in their
+contributor attributions. Divergent history, moved tags, and release assets that
+need a separate transfer stop the sync; it never force-pushes or prunes
+destination data.
