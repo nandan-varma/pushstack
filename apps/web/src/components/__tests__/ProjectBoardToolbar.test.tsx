@@ -113,6 +113,13 @@ describe("ProjectBoardToolbar", () => {
 		});
 	});
 
+	it("returns to the first page when the sort changes", async () => {
+		const user = userEvent.setup();
+		renderToolbar({ view: "board", sort: "title", page: 3 });
+		await user.selectOptions(screen.getByLabelText("Sort by"), "updated");
+		expect(navigate.mock.calls.at(-1)?.[0].search).not.toHaveProperty("page");
+	});
+
 	it("offers only single-select fields to group by and skips the group field on cards", () => {
 		renderToolbar({ group: "Team" });
 		expect(

@@ -46,10 +46,25 @@ describe("queryKeys", () => {
 				2,
 			]);
 		});
-		it("scopes a project page by its filter and page", () => {
+		it("scopes a project page by its filter, page, sort and direction", () => {
 			expect(
-				queryKeys.userProject("alice", 4, { q: "is:draft", page: 1 }),
-			).toEqual(["projects", "user", "alice", "detail", 4, "is:draft", 1]);
+				queryKeys.userProject("alice", 4, {
+					q: "is:draft",
+					page: 1,
+					sort: "updated",
+					dir: "desc",
+				}),
+			).toEqual([
+				"projects",
+				"user",
+				"alice",
+				"detail",
+				4,
+				"is:draft",
+				1,
+				"updated",
+				"desc",
+			]);
 		});
 	});
 

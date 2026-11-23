@@ -5,6 +5,7 @@ import type { ProjectField } from "@/server/projects";
 export interface ProjectViewSearch {
 	view?: "board";
 	q?: string;
+	page?: number;
 	sort?: string;
 	dir?: "asc" | "desc";
 	group?: string;
@@ -30,7 +31,7 @@ export function ProjectBoardToolbar({
 }) {
 	const navigate = useNavigate({ from: "/users/$login/projects/$number" });
 	const go = (next: ProjectViewSearch) => {
-		const merged = { ...search, ...next };
+		const merged = { ...search, ...next, page: undefined };
 		navigate({
 			to: "/users/$login/projects/$number",
 			params: { login, number: String(number) },

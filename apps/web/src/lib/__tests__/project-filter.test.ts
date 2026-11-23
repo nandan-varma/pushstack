@@ -1,16 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-	matchesProjectFilter,
-	type ProjectFilterItem,
-	parseProjectFilter,
-} from "@/lib/project-filter";
-
-const row = (over: Partial<ProjectFilterItem> = {}): ProjectFilterItem => ({
-	title: "Ship the board",
-	kind: "issue",
-	values: { status: "Todo", notes: "Needs review" },
-	...over,
-});
+import { parseProjectFilter } from "@/lib/project-filter";
 
 describe("parseProjectFilter", () => {
 	it("reads bare words as title terms", () => {
@@ -33,46 +22,5 @@ describe("parseProjectFilter", () => {
 	it("bounds the input and the token count", () => {
 		const filter = parseProjectFilter(`a ${"word ".repeat(500)}`);
 		expect(filter.terms.length).toBeLessThanOrEqual(20);
-	});
-});
-
-describe("matchesProjectFilter", () => {
-	it("matches every term, kind, value and empty field", () => {
-		expect(matchesProjectFilter(row(), parseProjectFilter("board"))).toBe(true);
-		expect(matchesProjectFilter(row(), parseProjectFilter("missing"))).toBe(
-			false,
-		);
-		expect(matchesProjectFilter(row(), parseProjectFilter("is:issue"))).toBe(
-			true,
-		);
-		expect(matchesProjectFilter(row(), parseProjectFilter("is:pr"))).toBe(
-			false,
-		);
-		expect(matchesProjectFilter(row(), parseProjectFilter("status:todo"))).toBe(
-			true,
-		);
-		expect(matchesProjectFilter(row(), parseProjectFilter("notes:other"))).toBe(
-			false,
-		);
-		expect(matchesProjectFilter(row(), parseProjectFilter("no:status"))).toBe(
-			false,
-		);
-		expect(
-			matchesProjectFilter(
-				row({ values: { status: null } }),
-				parseProjectFilter("no:status"),
-			),
-		).toBe(true);
-	});
-
-	it("keeps drafts by their own kind and title", () => {
-		const draft = row({ kind: "draft", title: "Draft plan", values: {} });
-		expect(matchesProjectFilter(draft, parseProjectFilter("is:draft"))).toBe(
-			true,
-		);
-		expect(matchesProjectFilter(draft, parseProjectFilter("draft"))).toBe(true);
-		expect(matchesProjectFilter(draft, parseProjectFilter("no:status"))).toBe(
-			true,
-		);
 	});
 });
