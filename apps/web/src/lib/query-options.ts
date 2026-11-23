@@ -47,7 +47,12 @@ import {
 	getUnreadNotificationCount,
 } from "@/server/notifications";
 import { getAuthorizedApps, getOAuthApps } from "@/server/oauth-apps";
-import { getUserProject, getUserProjects } from "@/server/projects";
+import {
+	getRepositoryProjects,
+	getUserProject,
+	getUserProjects,
+	searchUserProjectAddableItems,
+} from "@/server/projects";
 import {
 	getPullRequestByNumber,
 	getPullRequestCommits,
@@ -197,12 +202,19 @@ export const queryKeys = {
 		["repos", repoId, "milestones", number] as const,
 	repoMilestoneThreads: (repoId: number, number: number, state: string) =>
 		["repos", repoId, "milestones", number, "threads", state] as const,
+	userProjectsRoot: (login: string) => ["projects", "user", login] as const,
 	userProjects: (login: string, page: number) =>
 		["projects", "user", login, "list", page] as const,
+	userProjectRoot: (login: string, number: number) =>
+		["projects", "user", login, "detail", number] as const,
+	projectAddableItems: (login: string, number: number, query: string) =>
+		["projects", "user", login, "detail", number, "addable", query] as const,
+	repoProjects: (repoId: number, page: number) =>
+		["repos", repoId, "projects", page] as const,
 	userProject: (
 		login: string,
 		number: number,
-		filter: { q: string; page: number },
+		filter: { q: string; page: number; sort?: string; dir?: "asc" | "desc" },
 	) =>
 		[
 			"projects",
@@ -212,6 +224,8 @@ export const queryKeys = {
 			number,
 			filter.q,
 			filter.page,
+			filter.sort,
+			filter.dir,
 		] as const,
 	repoIssuesRoot: (repoId: number) => ["repos", repoId, "issues"] as const,
 	repoDiscussionsRoot: (repoId: number) =>
@@ -888,11 +902,27 @@ export function userProjectQueryOptions(
 	number: number,
 	q: string,
 	page: number,
+	sort = "title",
+	dir: "asc" | "desc" = "asc",
 ) {
 	return queryOptions({
-		queryKey: queryKeys.userProject(login, number, { q, page }),
-		queryFn: () => getUserProject({ data: { login, number, q, page } }),
+		queryKey: queryKeys.userProject(login, number, { q, page, sort, dir }),
+		queryFn: () =>
+			getUserProject({ data: { login, number, q, page, sort, dir } }),
 		staleTime: DEFAULT_STALE_TIME,
+	});
+}
+
+export function projectAddableItemsQueryOptions(
+	login: string,
+	number: number,
+	query: string,
+) {
+	return queryOptions({
+		queryKey: queryKeys.projectAddableItems(login, number, query),
+		queryFn: () =>
+			searchUserProjectAddableItems({ data: { login, number, query } }),
+		staleTime: 0,
 	});
 }
 
@@ -1215,5 +1245,18 @@ export function gistPageQueryOptions({
 		queryFn: () => getGistPage({ data: { owner, id, revision } }),
 		staleTime: immutable ? IMMUTABLE_STALE_TIME : DEFAULT_STALE_TIME,
 		gcTime: immutable ? IMMUTABLE_GC_TIME : undefined,
+	});
+}
+
+export function repoProjectsQueryOptions(
+	repoId: number,
+	page: number,
+	owner: string,
+	name: string,
+) {
+	return queryOptions({
+		queryKey: queryKeys.repoProjects(repoId, page),
+		queryFn: () => getRepositoryProjects({ data: { owner, name, page } }),
+		staleTime: DEFAULT_STALE_TIME,
 	});
 }

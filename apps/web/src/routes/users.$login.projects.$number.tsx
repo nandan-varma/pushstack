@@ -1,27 +1,56 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	createFileRoute,
 	Link,
 	notFound,
 	useNavigate,
 } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
+import { useState } from "react";
 import { Page } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PageHeader } from "@/components/PageHeader";
+import { ProjectBoard } from "@/components/project/ProjectBoard";
+import {
+	ProjectBoardToolbar,
+	type ProjectViewSearch,
+} from "@/components/project/ProjectBoardToolbar";
+import { ProjectDraftDialog } from "@/components/project/ProjectDraftDialog";
+import { ProjectFieldEditor } from "@/components/project/ProjectFieldEditor";
+import { ProjectItemPicker } from "@/components/project/ProjectItemPicker";
 import { ProjectTable } from "@/components/project/ProjectTable";
 import { ThreadSearchBox } from "@/components/ThreadSearchBox";
+import { useToast } from "@/components/toast-provider";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-	MAX_PROJECT_BOARD_ITEMS,
+	MAX_PROJECT_FIELD_NAME_CHARS,
 	MAX_PROJECT_FILTER_CHARS,
 } from "@/lib/limits";
-import { userProjectQueryOptions } from "@/lib/query-options";
+import { queryKeys, userProjectQueryOptions } from "@/lib/query-options";
+import type {
+	ProjectFieldValueInput,
+	ProjectTableRow,
+} from "@/server/projects";
+import {
+	addUserProjectItem,
+	clearUserProjectItemFieldValue,
+	setUserProjectItemFieldValue,
+	updateUserProjectDraft,
+} from "@/server/projects";
 
 export const Route = createFileRoute("/users/$login/projects/$number")({
 	validateSearch: (
 		search: Record<string, unknown>,
-	): { q?: string; page?: number } => ({
+	): {
+		q?: string;
+		page?: number;
+		view?: "board";
+		group?: string;
+		sort?: string;
+		dir?: "asc" | "desc";
+		by?: string;
+	} => ({
 		q:
 			typeof search.q === "string" && search.q
 				? search.q.slice(0, MAX_PROJECT_FILTER_CHARS)
@@ -30,13 +59,39 @@ export const Route = createFileRoute("/users/$login/projects/$number")({
 			typeof search.page === "number" && search.page > 1
 				? Math.floor(search.page)
 				: undefined,
+		view: search.view === "board" ? "board" : undefined,
+		group:
+			typeof search.group === "string" && search.group
+				? search.group.slice(0, MAX_PROJECT_FIELD_NAME_CHARS)
+				: undefined,
+		sort:
+			typeof search.sort === "string" && search.sort
+				? search.sort.slice(0, MAX_PROJECT_FIELD_NAME_CHARS)
+				: undefined,
+		dir: search.dir === "desc" ? "desc" : undefined,
+		by:
+			typeof search.by === "string" && search.by
+				? search.by.slice(0, MAX_PROJECT_FIELD_NAME_CHARS)
+				: undefined,
 	}),
-	loaderDeps: ({ search }) => ({ q: search.q ?? "", page: search.page ?? 1 }),
+	loaderDeps: ({ search }) => ({
+		q: search.q ?? "",
+		page: search.page ?? 1,
+		sort: search.sort ?? "title",
+		dir: search.dir ?? "asc",
+	}),
 	loader: ({ params, deps, context: { queryClient } }) => {
 		const number = Number(params.number);
 		if (!Number.isInteger(number) || number < 1) throw notFound();
 		return queryClient.ensureQueryData(
-			userProjectQueryOptions(params.login, number, deps.q, deps.page),
+			userProjectQueryOptions(
+				params.login,
+				number,
+				deps.q,
+				deps.page,
+				deps.sort,
+				deps.dir,
+			),
 		);
 	},
 	component: ProjectPage,
@@ -58,13 +113,71 @@ function ProjectNotFound() {
 	);
 }
 
+const EMPTY_DRAFT = { title: "", body: null };
+
 function ProjectPage() {
 	const { login, number } = Route.useParams();
-	const { q, page } = Route.useSearch();
+	const { q, page, view, group, sort, dir, by } = Route.useSearch();
 	const navigate = useNavigate({ from: Route.fullPath });
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
 	const { data, isLoading } = useQuery(
-		userProjectQueryOptions(login, Number(number), q ?? "", page ?? 1),
+		userProjectQueryOptions(
+			login,
+			Number(number),
+			q ?? "",
+			page ?? 1,
+			sort ?? "title",
+			dir ?? "asc",
+		),
 	);
+	const [draftForm, setDraftForm] = useState<{
+		open: boolean;
+		itemId: number | null;
+		initial: { title: string; body: string | null };
+	}>({ open: false, itemId: null, initial: EMPTY_DRAFT });
+
+	const invalidateProject = () =>
+		queryClient.invalidateQueries({
+			queryKey: queryKeys.userProjectRoot(login, Number(number)),
+		});
+	const writeError = (error: Error, fallback: string) =>
+		toast(error.message || fallback, "error");
+
+	const addItem = useMutation({
+		mutationFn: addUserProjectItem,
+		onSuccess: () => {
+			invalidateProject();
+			toast("Item added", "success");
+		},
+		onError: (error: Error) => writeError(error, "Couldn't add the item"),
+	});
+	const addDraft = useMutation({
+		mutationFn: addUserProjectItem,
+		onSuccess: () => {
+			setDraftForm({ open: false, itemId: null, initial: EMPTY_DRAFT });
+			invalidateProject();
+		},
+		onError: (error: Error) => writeError(error, "Couldn't add the draft"),
+	});
+	const updateDraft = useMutation({
+		mutationFn: updateUserProjectDraft,
+		onSuccess: () => {
+			setDraftForm({ open: false, itemId: null, initial: EMPTY_DRAFT });
+			invalidateProject();
+		},
+		onError: (error: Error) => writeError(error, "Couldn't edit the draft"),
+	});
+	const setValue = useMutation({
+		mutationFn: setUserProjectItemFieldValue,
+		onSuccess: invalidateProject,
+		onError: (error: Error) => writeError(error, "Couldn't set the value"),
+	});
+	const clearValue = useMutation({
+		mutationFn: clearUserProjectItemFieldValue,
+		onSuccess: invalidateProject,
+		onError: (error: Error) => writeError(error, "Couldn't clear the value"),
+	});
 
 	if (isLoading || !data) {
 		return (
@@ -77,13 +190,68 @@ function ProjectPage() {
 	}
 
 	const { project } = data;
+	const viewSearch: ProjectViewSearch = { q, view, group, sort, dir, by };
 	const setFilter = (next: string) =>
-		navigate({ search: { q: next || undefined }, replace: true });
+		navigate({
+			search: { ...viewSearch, q: next || undefined, page: undefined },
+			replace: true,
+		});
 	const pageLink = (target: number) => ({
 		to: "/users/$login/projects/$number" as const,
 		params: { login, number },
-		search: { q: q || undefined, page: target > 1 ? target : undefined },
+		search: { ...viewSearch, page: target > 1 ? target : undefined },
 	});
+	const canWrite = data.canWrite && !project.closed;
+	const selects = data.fields.filter(
+		(field) => field.dataType === "SINGLE_SELECT",
+	);
+	const groupField = group ?? selects[0]?.name ?? "Status";
+	const submitDraft = (draft: { title: string; body: string | null }) => {
+		if (draftForm.itemId === null) {
+			addDraft.mutate({
+				data: {
+					login,
+					number: Number(number),
+					draftTitle: draft.title,
+					draftBody: draft.body,
+				},
+			});
+		} else {
+			updateDraft.mutate({
+				data: {
+					login,
+					number: Number(number),
+					itemId: draftForm.itemId,
+					title: draft.title,
+					body: draft.body,
+				},
+			});
+		}
+	};
+	const onSetValue = (
+		itemId: number,
+		field: { id: number; dataType: ProjectFieldValueInput["type"] },
+		input: ProjectFieldValueInput,
+	) =>
+		setValue.mutate({
+			data: {
+				login,
+				number: Number(number),
+				itemId,
+				fieldId: field.id,
+				value: input,
+			},
+		});
+	const onClearValue = (itemId: number, field: { id: number }) =>
+		clearValue.mutate({
+			data: { login, number: Number(number), itemId, fieldId: field.id },
+		});
+	const onEditDraft = (row: ProjectTableRow) =>
+		setDraftForm({
+			open: true,
+			itemId: row.id,
+			initial: { title: row.title, body: row.body },
+		});
 
 	return (
 		<Page className="space-y-5">
@@ -112,6 +280,39 @@ function ProjectPage() {
 						<Badge variant={project.public ? "outline" : "secondary"}>
 							{project.public ? "Public" : "Private"}
 						</Badge>
+						{canWrite && (
+							<span className="flex items-center gap-2">
+								<ProjectItemPicker
+									itemCount={data.itemCount}
+									login={login}
+									number={Number(number)}
+									pending={addItem.isPending}
+									onAdd={(issueId) =>
+										addItem.mutate({
+											data: {
+												login,
+												number: Number(number),
+												issueId,
+											},
+										})
+									}
+								/>
+								<button
+									type="button"
+									className="inline-flex items-center gap-1 rounded-[13px] border border-bjork-border-muted px-3 py-1.5 text-sm text-bjork-text-medium hover:text-bjork-text"
+									onClick={() =>
+										setDraftForm({
+											open: true,
+											itemId: null,
+											initial: EMPTY_DRAFT,
+										})
+									}
+								>
+									<Plus aria-hidden="true" className="size-4" />
+									Add draft
+								</button>
+							</span>
+						)}
 					</>
 				}
 			/>
@@ -126,21 +327,62 @@ function ProjectPage() {
 				placeholder="Filter by title, is:issue, is:pr, is:draft or status:Todo"
 				ariaLabel="Filter project items"
 			/>
-			{data.truncated && (
-				<p className="text-xs text-bjork-text-soft">
-					Showing the first {MAX_PROJECT_BOARD_ITEMS} of {data.itemCount} items;
-					filter to narrow the list.
-				</p>
-			)}
-			<ProjectTable
+
+			<ProjectBoardToolbar
+				login={login}
+				number={Number(number)}
+				view={view === "board" ? "board" : "table"}
+				search={viewSearch}
 				fields={data.fields}
-				rows={data.items}
-				emptyMessage={
-					q
-						? "No items match this filter."
-						: "This project has no items you can see."
-				}
 			/>
+			{canWrite && (
+				<ProjectFieldEditor
+					login={login}
+					number={Number(number)}
+					fields={data.fields}
+				/>
+			)}
+			{view === "board" ? (
+				<ProjectBoard
+					fields={data.fields}
+					rows={data.items}
+					group={groupField}
+					by={by ?? ""}
+					canWrite={canWrite}
+					pending={setValue.isPending || clearValue.isPending}
+					onSetValue={onSetValue}
+					onClearValue={onClearValue}
+					onEditDraft={onEditDraft}
+				/>
+			) : (
+				<ProjectTable
+					fields={data.fields}
+					rows={data.items}
+					emptyMessage={
+						q
+							? "No items match this filter."
+							: "This project has no items you can see."
+					}
+					canWrite={canWrite}
+					pending={setValue.isPending || clearValue.isPending}
+					onSetValue={onSetValue}
+					onClearValue={onClearValue}
+					onEditDraft={onEditDraft}
+				/>
+			)}
+			{canWrite && (
+				<ProjectDraftDialog
+					open={draftForm.open}
+					onOpenChange={(open) => {
+						if (!open)
+							setDraftForm({ open: false, itemId: null, initial: EMPTY_DRAFT });
+					}}
+					initial={draftForm.initial}
+					submitLabel={draftForm.itemId === null ? "Add draft" : "Save draft"}
+					pending={addDraft.isPending || updateDraft.isPending}
+					onSubmit={submitDraft}
+				/>
+			)}
 			{data.pageCount > 1 && (
 				<nav
 					aria-label="Project item pages"

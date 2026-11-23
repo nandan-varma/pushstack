@@ -308,10 +308,20 @@ Push wiki edits with the same personal access token as repository pushes.
 Page history is available through git. The web interface reads and edits pages;
 it does not yet have a revision-history view.
 
-Projects live at `/users/USERNAME/projects`. Open a project to see its items in
-a table. Project creation, fields and item changes use GraphQL for now; web
-editing and a board view are not yet available. Public projects show only
-content the visitor can read.
+Projects live at `/users/USERNAME/projects` (linked from the profile), with a
+table and a board grouped by a single-select field. Create a project, add
+fields and items, and set values from the web; the same operations also work
+through GraphQL with stock `gh` (`project list/view/create`, `field-list`,
+`field-create`, `item-add`, `item-list`, `item-edit`) — the GraphQL API is the
+only API, GitHub has no REST endpoints for Projects v2. Projects are
+user-owned; organizations, iteration fields and workflows are out of scope.
+
+A public project is readable by anyone, but it shows only items whose
+repository the visitor can read. A repository's Projects tab lists the
+projects holding one of its issues or pull requests. The web table and board
+page through readable items. Filtering and sorting happen before pagination,
+so larger projects remain searchable without loading the whole project into
+the browser. Filters share the syntax of GraphQL `items(query:)`.
 
 ## Gists
 

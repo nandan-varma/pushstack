@@ -1,12 +1,24 @@
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { FolderKanban } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { FolderKanban, Plus } from "lucide-react";
+import { useState } from "react";
 import { EmptyState } from "@/components/EmptyState";
 import { Page } from "@/components/layout/page";
 import { NotFoundCard } from "@/components/NotFoundCard";
 import { PageHeader } from "@/components/PageHeader";
+import { useToast } from "@/components/toast-provider";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { LoadingButton } from "@/components/ui/loading-button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { userProjectsQueryOptions } from "@/lib/query-options";
+import {
+	MAX_PROJECT_DESCRIPTION_CHARS,
+	MAX_PROJECT_TITLE_CHARS,
+	MAX_PROJECTS_PER_USER,
+} from "@/lib/limits";
+import { queryKeys, userProjectsQueryOptions } from "@/lib/query-options";
+import { createUserProject } from "@/server/projects";
 
 export const Route = createFileRoute("/users/$login/projects/")({
 	validateSearch: (search: Record<string, unknown>): { page?: number } => ({
@@ -35,6 +47,98 @@ function UserNotFound() {
 				backLabel="Back to home"
 			/>
 		</Page>
+	);
+}
+
+function NewProjectForm({ login }: { login: string }) {
+	const navigate = useNavigate();
+	const queryClient = useQueryClient();
+	const { toast } = useToast();
+	const [title, setTitle] = useState("");
+	const [shortDescription, setShortDescription] = useState("");
+	const [isPublic, setIsPublic] = useState(false);
+	const [open, setOpen] = useState(false);
+	const mutation = useMutation({
+		mutationFn: createUserProject,
+		onSuccess: ({ number }) => {
+			queryClient.invalidateQueries({
+				queryKey: queryKeys.userProjectsRoot(login),
+			});
+			navigate({
+				to: "/users/$login/projects/$number",
+				params: { login, number: String(number) },
+			});
+		},
+		onError: (error: Error) =>
+			toast(error.message || "Couldn't create the project", "error"),
+	});
+
+	if (!open) {
+		return (
+			<Button onClick={() => setOpen(true)}>
+				<Plus aria-hidden="true" />
+				New project
+			</Button>
+		);
+	}
+	return (
+		<form
+			aria-label="New project"
+			className="space-y-4 rounded-[18px] border border-bjork-border-muted bg-bjork-surface p-5"
+			onSubmit={(event) => {
+				event.preventDefault();
+				if (!title.trim()) return;
+				mutation.mutate({
+					data: {
+						title,
+						shortDescription: shortDescription || null,
+						public: isPublic,
+					},
+				});
+			}}
+		>
+			<div className="space-y-1.5">
+				<Label htmlFor="new-project-title">Project title</Label>
+				<Input
+					id="new-project-title"
+					value={title}
+					maxLength={MAX_PROJECT_TITLE_CHARS}
+					placeholder="My project"
+					onChange={(event) => setTitle(event.target.value)}
+				/>
+			</div>
+			<div className="space-y-1.5">
+				<Label htmlFor="new-project-description">Description</Label>
+				<Input
+					id="new-project-description"
+					value={shortDescription}
+					maxLength={MAX_PROJECT_DESCRIPTION_CHARS}
+					placeholder="Optional short description"
+					onChange={(event) => setShortDescription(event.target.value)}
+				/>
+			</div>
+			<label className="flex items-center gap-2 text-sm text-bjork-text-medium">
+				<input
+					type="checkbox"
+					checked={isPublic}
+					onChange={(event) => setIsPublic(event.target.checked)}
+					className="size-4 accent-bjork-accent"
+				/>
+				Public
+			</label>
+			<div className="flex justify-end gap-2">
+				<Button variant="outline" type="button" onClick={() => setOpen(false)}>
+					Cancel
+				</Button>
+				<LoadingButton
+					type="submit"
+					isLoading={mutation.isPending}
+					disabled={!title.trim()}
+				>
+					Create project
+				</LoadingButton>
+			</div>
+		</form>
 	);
 }
 
@@ -70,6 +174,12 @@ function ProjectsPage() {
 					</>
 				}
 			/>
+			{data.viewerIsOwner && <NewProjectForm login={login} />}
+			{data.projects.length >= MAX_PROJECTS_PER_USER && (
+				<p className="text-xs text-bjork-text-soft">
+					This user holds the maximum of {MAX_PROJECTS_PER_USER} projects.
+				</p>
+			)}
 			{data.projects.length === 0 ? (
 				<EmptyState
 					icon={<FolderKanban aria-hidden="true" />}

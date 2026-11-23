@@ -163,6 +163,15 @@ function UserProfilePage() {
 								following
 							</Link>
 						</p>
+						<p className="mt-1.5 text-[13px]">
+							<Link
+								to="/users/$login/projects"
+								params={{ login: user.username }}
+								className="text-bjork-text-muted hover:text-bjork-accent"
+							>
+								Projects
+							</Link>
+						</p>
 						{!isSelf && (
 							<FollowButton username={user.username} following={isFollowing} />
 						)}

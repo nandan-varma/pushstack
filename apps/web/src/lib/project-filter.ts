@@ -2,8 +2,8 @@
  * The filter string a project's items share with `items(query:)`: bare words
  * match an item's title, `is:issue`, `is:pr` and `is:draft` its kind,
  * `field:value` a field value and `no:field` an empty one, all case-insensitive
- * and quote-able (`status:"In Progress"`). Parsed once, then applied to rows in
- * memory; nothing here reaches SQL.
+ * and quote-able (`status:"In Progress"`). Parsed on the server and applied in
+ * SQL, so filtering and pagination always see the whole project.
  */
 import { MAX_PROJECT_FILTER_CHARS } from "#/lib/limits";
 
@@ -88,21 +88,4 @@ export function parseProjectFilter(input: string): ProjectFilter {
 		filter.values.push({ field: qualifier, value: value.toLowerCase() });
 	}
 	return filter;
-}
-
-export function matchesProjectFilter(
-	item: ProjectFilterItem,
-	filter: ProjectFilter,
-): boolean {
-	const title = item.title.toLowerCase();
-	if (!filter.terms.every((term) => title.includes(term))) return false;
-	if (filter.kinds.length > 0 && !filter.kinds.includes(item.kind))
-		return false;
-	for (const { field, value } of filter.values) {
-		if ((item.values[field] ?? "").toLowerCase() !== value) return false;
-	}
-	for (const field of filter.empty) {
-		if (item.values[field]) return false;
-	}
-	return true;
 }
