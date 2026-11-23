@@ -53,7 +53,7 @@ async function renderPreview() {
 test("a failed repository stays unavailable while a hovered route retries its shared query", async () => {
 	loadRepo.mockRejectedValue(new Error("Repository unavailable"));
 	const { client, container } = await renderPreview();
-	await screen.findByText("Couldn't load commits right now.");
+	await screen.findByText("This repository isn't available.");
 	let finish!: () => void;
 	loadRepo.mockImplementation(
 		() =>
@@ -73,7 +73,7 @@ test("a failed repository stays unavailable while a hovered route retries its sh
 		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
 	expect(
-		screen.getByText("Couldn't load commits right now."),
+		screen.getByText("This repository isn't available."),
 	).toBeInTheDocument();
 	expect(container.querySelector('[data-slot="skeleton"]')).toBeNull();
 	await act(async () => {

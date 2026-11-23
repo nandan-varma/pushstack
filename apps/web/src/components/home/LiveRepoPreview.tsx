@@ -87,9 +87,7 @@ export function LiveRepoPreview() {
 							<p className="text-sm text-bjork-text-soft">No commits yet.</p>
 						) : repoFetched && !repo ? (
 							<p className="text-sm text-bjork-text-soft">
-								{repo === null
-									? "This repository isn't available."
-									: "Couldn't load commits right now."}
+								This repository isn't available.
 							</p>
 						) : commitsFetched ? (
 							<p className="text-sm text-bjork-text-soft">
